@@ -1,4 +1,4 @@
-# odradek-sync
+# Odradek RGB Sync
 
 Mirror the **Odradek** from *Death Stranding Director's Cut* on your RGB keyboard, live, while
 you play. It shows the blue warning flashes, spinning orange when a BT is close, the terrain-scan
