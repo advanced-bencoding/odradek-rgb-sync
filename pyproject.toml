@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "odradek-sync"
+version = "0.1.0"
+description = "Mirror Death Stranding's Odradek on your RGB keyboard by reading game state from memory (read-only)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Benjamin Joseph" }]
+dependencies = []
+
+[project.optional-dependencies]
+openrgb = ["openrgb-python>=0.2.15"]
+recon = ["numpy>=1.26"]
+tray = ["jeepney>=0.8; sys_platform == 'linux'", "pystray>=0.19; sys_platform == 'win32'", "Pillow>=10; sys_platform == 'win32'"]
+all = ["odradek-sync[openrgb,recon,tray]"]
+
+[project.scripts]
+odradek-sync = "odradek_sync.cli:main"
+odradek-sync-app = "odradek_sync.app.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+odradek_sync = ["config/**/*.toml"]

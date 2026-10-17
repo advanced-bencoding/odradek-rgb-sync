@@ -1,0 +1,95 @@
+# Signal map: human-level signals defined by animation play states.
+# A signal is true while ANY listed animation has `state` (default 3 = playing).
+# Animation names are resource paths without directory and "an_" prefix.
+# confidence: confirmed (repeatedly verified against logged events) | likely | weak (guess/one sighting)
+format = 1                 # config format version (see RELEASING.md)
+game = "death_stranding_dc"
+
+[signals.scan]
+animations = ["odra_arm_search", "odra_main_search", "odra_arm_search_driving", "odra_arm_search_avoid_backpack"]
+confidence = "confirmed"
+description = "Terrain scan (R1/RB): the Odradek's search animation, ~1.1 s"
+evidence = "Played on every accepted scan: 6/6 outside BT zones, 2/2 in a BT zone, 2/2 during autotoxemia; not on presses during cooldown. _driving/_avoid_backpack variants are name-guessed, not seen yet."
+
+[signals.waking]
+animations = ["odra_main_wakeup", "odra_arm_wakeup"]
+confidence = "likely"
+description = "The folded Odradek unfolding (0.5 s), e.g. right before a scan"
+evidence = "wakeup -> search -> refold ~3 s later on 6/6 folded scans; also 5.5 s on entering a BT zone."
+
+[signals.folded]
+animations = ["odra_main_sleep_lp", "odra_arm_sleep_lp"]
+state = 4
+confidence = "confirmed"
+description = "Odradek folded on Sam's shoulder (sleep loop held = state 4; 3 when open)"
+evidence = "4 in idle recordings, 3 throughout BT zones; drops to 3 at each folded scan and returns ~3.2 s later."
+
+[signals.blue_flash]
+animations = ["odra_main_warrning_sign_lp"]
+confidence = "confirmed"
+description = "Raw blue warning light. Blinks for slow/fast pulsing, held on for rapid. Use the derived `blue` / `blue_pulse` instead."
+evidence = "On ~0.27 s every ~3.3 s (BTs far) / ~1.8 s (closer), continuous when rapid; swaps with orange in the same frame."
+
+[signals.orange]
+animations = ["odra_main_warrning_sign_near_lp"]
+confidence = "confirmed"
+description = "Orange: a BT is very close, Odradek spinning"
+evidence = "Matched every orange the player reported (5+ episodes). Spin speed (rapid vs slow) changes no animation."
+
+[signals.spinning]
+animations = ["odra_main_gzm_on_spin"]
+confidence = "weak"
+description = "Name suggests the spinning gizmo; seen once right after waking in a BT zone"
+
+[signals.pointing]
+animations = ["odra_main_point_lp", "odra_arm_point_lp", "odra_arm_forward_pose", "odra_arm_crouch_forward_pose"]
+confidence = "weak"
+description = "Arm pointing poses; crouch_forward_pose follows crouching/holding breath"
+
+[signals.autotoxemia]
+animations = ["odra_main_autointoxication_lp", "odra_arm_autointoxication_lp"]
+confidence = "likely"
+description = "Odradek stops working until BB is repaired"
+evidence = "Both on after the autotoxemia cutscene; scans still play over it. BB's own loop is NOT enough (see bb_autotoxemia)."
+
+[signals.bb_autotoxemia]
+animations = ["bbydef_q_autointoxication_lp"]
+confidence = "weak"
+description = "BB's body autotoxemia loop; came on alone once while the Odradek kept pulsing blue (stress?)"
+
+[signals.bb_scared]
+animations = ["bbyface_r_scared_lp", "bbydef_q_scared_lp"]
+confidence = "likely"
+description = "BB scared, during blue; starts exactly when the Odradek pops up"
+
+[signals.bb_getting_scared]
+animations = ["bbyface_r_scared_st", "bbydef_q_scared_st"]
+confidence = "likely"
+description = "BB starting to get scared (~2.7 s before the pop-up, and between orange episodes)"
+
+[signals.bb_crying]
+animations = ["bbyface_r_def_q_crying_small_loop_lp"]
+confidence = "likely"
+description = "BB crying, during orange"
+
+[signals.bb_searching]
+animations = ["bbydef_q_search_st", "bbydef_q_search_lp", "bbydef_q_search_ed"]
+confidence = "likely"
+description = "BB's body searching, during orange"
+
+# Derived signals (code plug-ins, see signals/derivers.py)
+[[derived]]
+kind = "pulse_rate"
+source = "blue_flash"
+cancel = ["orange"]
+active = "blue"            # held true between flashes
+level = "blue_pulse"       # rapid | fast | slow | (unknown for the first flash)
+hold = 4.5
+steady = 1.0
+slow_threshold = 2.5
+
+# Known states nobody has mapped yet. Use recon mode to find them.
+[unmapped]
+bt_following = "BTs following your footprints after an orange episode: both warning animations stop; in-game the Odradek shows static orange. Its animation is unknown."
+red = "Red (BT grabbing / combat): never captured."
+orange_spin_speed = "Rapid vs slow orange spin: not an animation state; probably a playback-speed float or BT distance."

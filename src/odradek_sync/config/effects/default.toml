@@ -1,0 +1,139 @@
+# Effect map: which effect each signal state shows. Layers are drawn top of file = bottom of stack.
+# state layers: the FIRST rule whose `when` conditions all hold is shown.
+# trigger layers: a rule plays for `duration` seconds when its `on` signal turns on.
+# Conditions: "sig" (truthy), "!sig", "sig=value", "sig!=value". effect = "none" -> transparent.
+# Effects and their params: `odradek-sync effects list`.
+format = 1                 # config format version (see RELEASING.md)
+name = "default"
+fps = 30
+
+# ── The Odradek: the whole board (BB is drawn over the top row below) ──
+[[layer]]
+name = "odradek"
+kind = "state"
+region = "all"
+blend = "replace"
+
+  [[layer.rule]]
+  when = ["no_game"]
+  effect = "breathe"
+  params = { color = "#ff9628", period = 6.0, min = 0.02, max = 0.06 }
+
+  [[layer.rule]]
+  when = ["autotoxemia"]
+  effect = "dying_flicker"
+  params = { color = "#c80a00" }
+
+  [[layer.rule]]
+  when = ["orange"]
+  effect = "radar_sweep"
+  params = { color = "#ff5a00", rpm = 60 }
+
+  [[layer.rule]]
+  when = ["blue", "blue_pulse=rapid"]
+  effect = "strobe_wave"
+  params = { color = "#146eff", hz = 4 }
+
+  [[layer.rule]]
+  when = ["blue"]
+  effect = "flash_mirror"       # one flash per real in-game flash
+  params = { color = "#146eff", signal = "blue_flash" }
+
+  [[layer.rule]]
+  when = ["folded"]
+  effect = "breathe"
+  params = { color = "#ff9628", period = 5.0, min = 0.04, max = 0.10 }
+
+  [[layer.rule]]                # open, nothing around
+  effect = "solid"
+  params = { color = "#ff9628", brightness = 0.12 }
+
+# ── Odradek one-shot events (scan, unfold): whole board; BB's layer below still owns the top row when active ──
+[[layer]]
+name = "odradek_events"
+kind = "trigger"
+region = "all"
+blend = "max"
+
+  [[layer.rule]]
+  on = "scan"
+  effect = "shockwave"
+  duration = 1.6
+  params = { color = "#aadcff", origin = "bottom_center" }
+
+  [[layer.rule]]
+  on = "waking"
+  effect = "ring"
+  duration = 1.2
+  params = { color = "#ff9628" }
+
+# ── BB: the top row only (Esc + F1-F12 on the AULA F75). "none" = show the Odradek there ──
+[[layer]]
+name = "bb"
+kind = "state"
+region = "top_row"
+blend = "replace"
+
+  [[layer.rule]]
+  when = ["no_game"]
+  effect = "none"
+
+  [[layer.rule]]
+  when = ["bb_crying"]
+  effect = "raindrops"
+  params = { color = "#aadcff", background = "#ff5a00", background_brightness = 0.05 }
+
+  [[layer.rule]]
+  when = ["bb_scared"]
+  effect = "jitter"
+  params = { color = "#ff9628" }
+
+  [[layer.rule]]
+  when = ["bb_getting_scared"]
+  effect = "jitter"
+  params = { color = "#ff9628", min = 0.1, max = 0.6 }
+
+  [[layer.rule]]
+  when = ["folded"]
+  effect = "none"
+
+  [[layer.rule]]
+  effect = "solid"
+  params = { color = "#00a08c" }
+
+# `odradek-sync effects demo` plays these scenarios through the map above.
+# signals: held for the whole scenario; blink: a signal switched on for `width` s every `period` s.
+[[demo]]
+label = "No game running"
+signals = { no_game = true }
+
+[[demo]]
+label = "Folded, no BTs"
+signals = { folded = true }
+
+[[demo]]
+label = "Terrain scan from folded (unfold ring + shockwave)"
+signals = { folded = true }
+blink = [{ signal = "waking", period = 3.0, width = 0.5 }, { signal = "scan", period = 3.0, width = 1.1, offset = 0.5 }]
+
+[[demo]]
+label = "Blue, slow pulsing (BTs far)"
+signals = { blue = true, blue_pulse = "slow", bb_scared = true }
+blink = [{ signal = "blue_flash", period = 3.3, width = 0.27 }]
+
+[[demo]]
+label = "Blue, fast pulsing (BTs at medium range)"
+signals = { blue = true, blue_pulse = "fast", bb_scared = true }
+blink = [{ signal = "blue_flash", period = 1.8, width = 0.27 }]
+
+[[demo]]
+label = "Blue, rapid (BTs close)"
+signals = { blue = true, blue_pulse = "rapid", bb_scared = true }
+
+[[demo]]
+label = "Orange: BT very close, BB crying"
+signals = { orange = true, bb_crying = true }
+
+[[demo]]
+label = "Autotoxemia"
+signals = { autotoxemia = true }

@@ -1,0 +1,19 @@
+# Game profile: how to find animation objects in this game's memory.
+# A different build (Steam vs Epic, a patch) may move the vtable; `odradek-sync recon discover`
+# finds the new values. Add a new file per build/game rather than editing this one.
+format = 1                 # config format version (see RELEASING.md)
+
+[game]
+id = "death_stranding_dc"
+name = "Death Stranding Director's Cut"
+executables = ["DeathStranding.exe"]
+module = "DeathStranding.exe"
+verified_builds = ["Epic Games Store, October 2026, under GE-Proton on Fedora 44"]
+
+[animation_objects]
+vtable_rva = 0x3C12968     # vtable address - DeathStranding.exe load address
+state_offset = 0x18        # u32 play state: 2 idle, 3 playing, 4 held
+name_offset = 0x28         # char* resource path
+# Which animations to track: the Odradek, BB's body and face, Sam's face.
+name_filter = "/odra/odra/|/bbyface_r/|/bby/bbydef/|/samface_r/"
+strip_prefix = "an_"

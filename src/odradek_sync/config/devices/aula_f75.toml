@@ -1,0 +1,16 @@
+# Device overrides: extra or corrected named regions for one device. Optional: top_row,
+# bottom_row, frow, number_row, arrows, wasd and numpad are derived automatically from positions
+# and key names. This file is kept as an example (its regions match the automatic ones).
+# `match` is a case-insensitive substring of the device name.
+# Regions: { rows = [...] } (matrix rows) and/or { keys = [...] } (LED names or common variants).
+# Note: OpenRGB controls the AULA F75 only over USB (258a:010c). Bluetooth (3554:fa08) and the
+# 2.4 GHz dongle (3554:fa09) use an undocumented vendor channel that OpenRGB doesn't support.
+format = 1                 # config format version (see RELEASING.md)
+
+[device]
+match = "AULA F75"
+
+[regions]
+top_row = { rows = [0] }
+arrows = { keys = ["Up Arrow", "Down Arrow", "Left Arrow", "Right Arrow"] }
+wasd = { keys = ["W", "A", "S", "D"] }

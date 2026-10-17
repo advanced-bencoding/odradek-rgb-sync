@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Odradek Sync
+Comment=Mirror the Odradek on your RGB keyboard
+Exec=odradek-sync
+Icon=odradek-sync
+Terminal=false
+Categories=Game;Utility;

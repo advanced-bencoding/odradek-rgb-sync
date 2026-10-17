@@ -1,0 +1,136 @@
+# Subtle / accessibility effect map: the same states as default.toml, shown gently.
+#  - no strobes, flicker or random jitter; every state is a steady glow or a slow fade/motion
+#  - lower brightness overall
+#  - the [accessibility] filter caps brightness and smooths every LED, so even a sudden state
+#    change becomes a fade (stays well under WCAG 2.3.1's three-flashes-per-second limit)
+# Use with: odradek-sync run --subtle   (same as --effects subtle)
+format = 1                 # config format version (see RELEASING.md)
+name = "subtle"
+fps = 30
+
+[accessibility]
+max_brightness = 0.45   # share of full brightness, per channel
+smoothing = 0.35        # seconds; time constant for fading between colours
+
+# ── The Odradek: the whole board (BB is drawn over the top row below) ──
+[[layer]]
+name = "odradek"
+kind = "state"
+region = "all"
+blend = "replace"
+
+  [[layer.rule]]
+  when = ["no_game"]
+  effect = "breathe"
+  params = { color = "#ff9628", period = 8.0, min = 0.01, max = 0.04 }
+
+  [[layer.rule]]
+  when = ["autotoxemia"]
+  effect = "breathe"            # slow dim red instead of a flicker
+  params = { color = "#c80a00", period = 6.0, min = 0.08, max = 0.25 }
+
+  [[layer.rule]]
+  when = ["orange"]
+  effect = "radar_sweep"        # slow, wide, soft sweep
+  params = { color = "#ff5a00", rpm = 12, tail = 4.0, floor = 0.15 }
+
+  [[layer.rule]]
+  when = ["blue", "blue_pulse=rapid"]
+  effect = "solid"              # steady instead of a strobe
+  params = { color = "#146eff", brightness = 0.6 }
+
+  [[layer.rule]]
+  when = ["blue"]
+  effect = "flash_mirror"       # still follows the in-game flashes, as a long soft swell
+  params = { color = "#146eff", signal = "blue_flash", flash = 0.9, floor = 0.12 }
+
+  [[layer.rule]]
+  when = ["folded"]
+  effect = "breathe"
+  params = { color = "#ff9628", period = 8.0, min = 0.03, max = 0.07 }
+
+  [[layer.rule]]
+  effect = "solid"
+  params = { color = "#ff9628", brightness = 0.10 }
+
+# ── Odradek one-shot events (scan, unfold): whole board; BB's layer below still owns the top row when active ──
+[[layer]]
+name = "odradek_events"
+kind = "trigger"
+region = "all"
+blend = "max"
+
+  [[layer.rule]]
+  on = "scan"
+  effect = "ring"               # a slow, soft ring instead of a bright shockwave
+  duration = 2.0
+  params = { color = "#aadcff", origin = "bottom_center", speed = 6.0, width = 3.0, floor = 0.0 }
+
+# ── BB: the top row only (Esc + F1-F12 on the AULA F75). "none" = show the Odradek there ──
+[[layer]]
+name = "bb"
+kind = "state"
+region = "top_row"
+blend = "replace"
+
+  [[layer.rule]]
+  when = ["no_game"]
+  effect = "none"
+
+  [[layer.rule]]
+  when = ["bb_crying"]
+  effect = "breathe"
+  params = { color = "#aadcff", period = 4.0, min = 0.15, max = 0.45 }
+
+  [[layer.rule]]
+  when = ["bb_scared"]
+  effect = "breathe"
+  params = { color = "#ff9628", period = 3.0, min = 0.2, max = 0.5 }
+
+  [[layer.rule]]
+  when = ["bb_getting_scared"]
+  effect = "solid"
+  params = { color = "#ff9628", brightness = 0.3 }
+
+  [[layer.rule]]
+  when = ["folded"]
+  effect = "none"
+
+  [[layer.rule]]
+  effect = "solid"
+  params = { color = "#00a08c", brightness = 0.4 }
+
+[[demo]]
+label = "No game running"
+signals = { no_game = true }
+
+[[demo]]
+label = "Folded, no BTs"
+signals = { folded = true }
+
+[[demo]]
+label = "Terrain scan"
+signals = { folded = true }
+blink = [{ signal = "scan", period = 3.0, width = 1.1 }]
+
+[[demo]]
+label = "Blue, slow pulsing (BTs far)"
+signals = { blue = true, blue_pulse = "slow", bb_scared = true }
+blink = [{ signal = "blue_flash", period = 3.3, width = 0.27 }]
+
+[[demo]]
+label = "Blue, fast pulsing (BTs at medium range)"
+signals = { blue = true, blue_pulse = "fast", bb_scared = true }
+blink = [{ signal = "blue_flash", period = 1.8, width = 0.27 }]
+
+[[demo]]
+label = "Blue, rapid (BTs close)"
+signals = { blue = true, blue_pulse = "rapid", bb_scared = true }
+
+[[demo]]
+label = "Orange: BT very close, BB crying"
+signals = { orange = true, bb_crying = true }
+
+[[demo]]
+label = "Autotoxemia"
+signals = { autotoxemia = true }

@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+build/
+dist/
+.pytest_cache/
+# recordings and recon output are personal data, keep them out of the repo
+recordings/
+*.jsonl
+logs/

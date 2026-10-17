@@ -1,0 +1,67 @@
+# Builds the player apps (Linux AppImage, Windows installer). Runs on version tags (v*) and by hand.
+name: Build player apps
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Release check (tag matches pyproject.toml, changelog has notes)
+        if: startsWith(github.ref, 'refs/tags/')
+        run: python scripts/release.py check "$GITHUB_REF_NAME"
+      # strict: any file I/O without an explicit encoding fails (Windows defaults to cp1252)
+      - run: pip install -e ".[all]" && python -X warn_default_encoding -W error::EncodingWarning -m unittest discover -s tests -v
+
+  linux:
+    needs: test
+    runs-on: ubuntu-22.04          # older glibc, so the AppImage runs on more distros
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: sudo apt-get update && sudo apt-get install -y libfuse2
+      - run: PYTHON=python bash packaging/build_linux.sh
+      - uses: actions/upload-artifact@v4
+        with: { name: linux-appimage, path: dist/*.AppImage }
+
+  windows:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: python -X warn_default_encoding -W error::EncodingWarning -m unittest discover -s tests -v
+        env: { PYTHONPATH: src }
+      - shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+          ./packaging/build_windows.ps1
+      - uses: actions/upload-artifact@v4
+        with: { name: windows-installer, path: dist/*-setup.exe }
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [linux, windows]
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: python scripts/release.py notes "$GITHUB_REF_NAME" > release-notes.md
+      - uses: actions/download-artifact@v4
+        with: { path: artifacts, merge-multiple: true }
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          body_path: release-notes.md
+          draft: true                                   # review, test, then publish by hand
+          prerelease: ${{ contains(github.ref_name, '-') }}

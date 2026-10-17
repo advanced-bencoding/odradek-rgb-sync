@@ -1,0 +1,4 @@
+#!/bin/sh
+# AppImage entry: run the bundled app with whatever arguments we got (--stop, --open-log, ...).
+HERE="$(dirname "$(readlink -f "$0")")"
+exec "$HERE/usr/bin/odradek-sync/odradek-sync" "$@"
