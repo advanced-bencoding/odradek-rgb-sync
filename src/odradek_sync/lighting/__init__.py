@@ -30,6 +30,19 @@ def detect_backend() -> str:
     return "z13" if z13_present() else "openrgb"
 
 
+# The backends a player can choose between (the tray's Lighting entries), with the names they see.
+BACKEND_LABELS = {"openrgb": "OpenRGB", "z13": "ASUS ROG Flow Z13 (z13ctl)"}
+
+
+def backend_status() -> dict[str, str | None]:
+    """Each choosable backend -> None if it can be used here, else why not (shown next to its greyed-out entry).
+    OpenRGB needs to be installed (or its server running); the Z13 needs z13ctl and the Z13's lighting."""
+    from .openrgb_repository import openrgb_available
+    from .z13_repository import z13_present, z13ctl_installed
+    z13 = None if z13_present() and z13ctl_installed() else ("z13ctl not installed" if z13_present() else "no Z13 found")
+    return {"openrgb": None if openrgb_available() else "not installed", "z13": z13}
+
+
 def default_effects(backend: str, subtle: bool = False) -> str:
     """The effect map a backend runs by default (config/effects/<name>.toml)."""
     if backend == "z13":
@@ -37,6 +50,7 @@ def default_effects(backend: str, subtle: bool = False) -> str:
     return "subtle" if subtle else "default"
 
 
-__all__ = ["BackendMissingError", "NoDeviceError", "DeviceError", "DeviceInfo", "DeviceRepository", "FirmwareMode",
-           "FirmwareModeDevice", "LedInfo", "LightingDevice", "create_repository", "default_effects", "detect_backend",
+__all__ = ["BACKEND_LABELS", "BackendMissingError", "NoDeviceError", "DeviceError", "DeviceInfo", "DeviceRepository", "FirmwareMode",
+           "FirmwareModeDevice", "LedInfo", "LightingDevice", "backend_status", "create_repository", "default_effects",
+           "detect_backend",
            "register_repository", "repository_names"]

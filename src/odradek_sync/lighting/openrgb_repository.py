@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -33,6 +34,17 @@ def find_openrgb() -> str | None:
                        Path("/var/lib/flatpak/exports/bin/org.openrgb.OpenRGB"),
                        Path.home() / ".local/share/flatpak/exports/bin/org.openrgb.OpenRGB"]
     return next((str(c) for c in candidates if c.is_file()), None)
+
+
+def openrgb_available(host: str = "127.0.0.1", port: int = 6742) -> bool:
+    """OpenRGB is installed, or its SDK server is running (e.g. started from somewhere we don't look)."""
+    if find_openrgb():
+        return True
+    try:
+        with socket.create_connection((host, port), timeout=0.2):
+            return True
+    except OSError:
+        return False
 
 
 class OpenRGBDevice(LightingDevice):

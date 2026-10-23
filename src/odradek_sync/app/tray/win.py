@@ -25,7 +25,7 @@ class WindowsTray(Tray):
                 entries.append(pystray.Menu.SEPARATOR)
                 continue
             action = (lambda a: (lambda icon, item: self.on_action(a)))(m.action) if m.action else None
-            entries.append(pystray.MenuItem(m.label, action, enabled=m.enabled,
+            entries.append(pystray.MenuItem(m.label, action, enabled=m.enabled, radio=m.radio,
                                             checked=(lambda c: (lambda item: c))(m.checked) if m.checked is not None else None))
         return pystray.Menu(*entries)
 

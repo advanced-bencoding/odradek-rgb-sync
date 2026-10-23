@@ -3,7 +3,7 @@ runs exactly the same.
 
 The tray runs on its own thread. Menu clicks are delivered as action names to `on_action`
 (called on the tray thread, so keep it short, e.g. put the action on a queue):
-    "toggle_subtle", "toggle_autostart", "open_log", "open_settings", "quit"
+    "toggle_subtle", "toggle_autostart", "open_log", "open_settings", "quit", and "lighting:<backend>"
 """
 from __future__ import annotations
 
@@ -21,6 +21,8 @@ class TrayState:
     subtle: bool = False
     autostart: bool = True
     active: bool = False        # True when connected to the game and the keyboard (full-colour icon)
+    lighting: str = ""          # the backend in use
+    backends: tuple[tuple[str, str, str | None], ...] = ()   # (backend, label, why it can't be used or None)
 
 
 @dataclass(frozen=True)
@@ -29,6 +31,7 @@ class MenuItem:
     label: str = ""
     action: str | None = None
     checked: bool | None = None  # None = not a checkbox
+    radio: bool = False          # checked shows as a radio button (one of a group)
     enabled: bool = True
     separator: bool = False
 
@@ -40,11 +43,22 @@ def menu_items(state: TrayState) -> list[MenuItem]:
         MenuItem(3, "Subtle mode (gentle effects)", "toggle_subtle", checked=state.subtle),
         MenuItem(4, "Start at login", "toggle_autostart", checked=state.autostart),
         MenuItem(5, separator=True),
+    ] + lighting_items(state) + [
         MenuItem(6, "Open log", "open_log"),
         MenuItem(7, "Open settings file", "open_settings"),
         MenuItem(8, separator=True),
         MenuItem(9, "Quit Odradek Sync", "quit"),
     ]
+
+
+def lighting_items(state: TrayState) -> list[MenuItem]:
+    """One entry per lighting backend, the one in use ticked. A backend that can't be used here is greyed
+    out with the reason (e.g. "OpenRGB (not installed)")."""
+    if not state.backends:
+        return []
+    return [MenuItem(20 + i, f"Lighting: {text}" + (f" ({problem})" if problem else ""), f"lighting:{backend}",
+                     checked=backend == state.lighting, radio=True, enabled=problem is None)
+            for i, (backend, text, problem) in enumerate(state.backends)] + [MenuItem(19, separator=True)]
 
 
 class Tray(ABC):

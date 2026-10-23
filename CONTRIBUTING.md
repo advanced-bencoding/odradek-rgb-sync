@@ -216,6 +216,11 @@ entry point. It differs from the developer CLI in these ways:
   states, signals or animation names there. Use `odradek-sync run` for that.
 - **It keeps going.** `ResilientKeyboard` retries when OpenRGB is missing or closed, or the
   keyboard is unplugged. Game attach status comes from `SyncEngine(on_status=...)`.
+- **Switching lighting backends live** (`ResilientKeyboard.switch`): the new backend is opened on
+  a worker thread while the current one keeps showing, and only swapped in once it opened. A
+  failure in its first `SWITCH_GRACE` seconds brings the previous backend back. The tray offers
+  the backends in `lighting.BACKEND_LABELS`, greyed out while `lighting.backend_status()` says
+  why one can't be used (re-checked every 10 s).
 - **One instance, graceful stop:** a lock file plus a stop-request file (`app/instance.py`),
   the same on both OSes. `--stop`, `--open-log`, `--open-settings`, `--uninstall`.
 - **Tray** (`app/tray/`): the menu is one data model (`menu_items`) shared by the backends.

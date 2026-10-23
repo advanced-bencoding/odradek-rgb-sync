@@ -66,6 +66,11 @@ def find_zones(sysfs: Path | None = None) -> dict[str, str]:
     return zones
 
 
+def z13ctl_installed() -> bool:
+    """z13ctl is on the PATH, or its daemon's socket is there."""
+    return shutil.which("z13ctl") is not None or os.path.exists(socket_path())
+
+
 def socket_path() -> str:
     """Where z13ctl's daemon listens (z13ctl api.SocketPath)."""
     return os.path.join(os.environ.get("XDG_RUNTIME_DIR") or "/tmp", "z13ctl", "z13ctl.sock")

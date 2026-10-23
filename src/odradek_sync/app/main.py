@@ -22,7 +22,7 @@ from .. import __version__
 from ..config import ConfigLoader
 from ..engine import SyncEngine
 from ..game import Attach, GameSession
-from ..lighting import create_repository, default_effects, detect_backend
+from ..lighting import BACKEND_LABELS, backend_status, create_repository, default_effects, detect_backend
 from ..lighting.compositor import EffectMap
 from ..platform import PlatformError, current_platform
 from ..signals import SignalMap, SignalPipeline
@@ -44,6 +44,26 @@ def open_path(path: Path) -> None:
         os.startfile(path)  # noqa: S606 - opens with the user's default app
     else:
         subprocess.Popen(["xdg-open", str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+BACKEND_RECHECK = 10.0  # s between checks for lighting software being installed or removed
+
+
+def choose_backend(setting: str, status: dict[str, str | None]) -> tuple[str, str | None]:
+    """(backend to start with, a note for the log, or None). A backend picked in the tray is used if it can be
+    used here; otherwise, and with "auto", the one this machine needs."""
+    if status.get(setting, "") is None:
+        return setting, None
+    backend = detect_backend()
+    if setting in ("auto", backend):
+        return backend, None
+    return backend, (f"{BACKEND_LABELS.get(setting, setting)} can't be used ({status.get(setting) or 'unknown'}); "
+                     f"using {BACKEND_LABELS[backend]} instead")
+
+
+def backend_entries(status: dict[str, str | None]) -> tuple[tuple[str, str, str | None], ...]:
+    """The tray's Lighting entries: (backend, label, why it can't be used or None)."""
+    return tuple((b, BACKEND_LABELS[b], status.get(b)) for b in BACKEND_LABELS)
 
 
 class StatusBoard:
@@ -145,17 +165,35 @@ def run_service(inst: SingleInstance) -> int:
         loader = ConfigLoader([])
         profile = loader.game(GAME)
         smap = SignalMap.from_dict(loader.load("signals", GAME))
-        backend = detect_backend()          # a ROG Flow Z13 goes through z13ctl; everything else through OpenRGB
+        status = backend_status()
+        backend, note = choose_backend(settings.lighting, status)
+        if note:
+            log.info(note)
         if backend == "z13":
             log.info("ASUS ROG Flow Z13 detected: lighting its keyboard through z13ctl")
-        effect_maps = {subtle: EffectMap.from_dict(loader.load("effects", default_effects(backend, subtle)))
-                       for subtle in (False, True)}
-        keyboard = ResilientKeyboard(log, effect_maps[settings.subtle], loader.devices(), settings.keyboard,
-                                     repo=create_repository(backend), on_status=board.set_keyboard)
+        maps: dict[tuple[str, bool], EffectMap] = {}
+
+        def effect_map_for(backend: str) -> EffectMap:
+            """The effect map a backend runs, in the current subtle setting (loaded once each)."""
+            key = (backend, settings.subtle)
+            if key not in maps:
+                maps[key] = EffectMap.from_dict(loader.load("effects", default_effects(*key)))
+            return maps[key]
+
+        def backend_changed(backend: str, changed: bool) -> None:
+            tray.update(lighting=backend)
+            if changed:
+                settings.lighting = backend
+                settings.save(SETTINGS)
+
+        tray.update(lighting=backend, backends=backend_entries(status))
+        keyboard = ResilientKeyboard(log, effect_map_for(backend), loader.devices(), settings.keyboard,
+                                     repo=create_repository(backend), on_status=board.set_keyboard, backend=backend,
+                                     effect_map_for=effect_map_for, on_backend=backend_changed)
         session = GameSession(current_platform(), profile, smap.animations, user_cache_dir(), log=lambda m: None)
-        engine = SyncEngine(session, SignalPipeline(smap), [keyboard], fps=effect_maps[False].fps,
+        engine = SyncEngine(session, SignalPipeline(smap), [keyboard], fps=effect_map_for(backend).fps,
                             log=lambda m: None, on_status=StatusMessages(log, board))
-        checked = [0.0]
+        checked, looked = [0.0], [time.time(), status]
 
         def handle(action: str) -> None:
             if action == "quit":
@@ -163,7 +201,7 @@ def run_service(inst: SingleInstance) -> int:
             elif action == "toggle_subtle":
                 settings.subtle = not settings.subtle
                 settings.save(SETTINGS)
-                keyboard.set_effect_map(effect_maps[settings.subtle])
+                keyboard.set_effect_map(effect_map_for(keyboard.backend))
                 tray.update(subtle=settings.subtle)
                 log.info("Subtle mode " + ("on" if settings.subtle else "off"))
             elif action == "toggle_autostart":
@@ -175,6 +213,15 @@ def run_service(inst: SingleInstance) -> int:
                     log.info("Couldn't change starting automatically at login")
                 tray.update(autostart=settings.autostart)
                 log.info("Start at login " + ("on" if settings.autostart else "off"))
+            elif action.startswith("lighting:"):
+                want = action.split(":", 1)[1]
+                problem = backend_status().get(want, "unknown lighting software")
+                if problem:
+                    log.info(f"Can't switch lighting to {BACKEND_LABELS.get(want, want)}: {problem}")
+                elif keyboard.switching is not None:
+                    log.info("Already switching lighting; try again in a moment")
+                if problem or not keyboard.switch(want):
+                    tray.update(lighting=keyboard.backend)      # put the tick back where it belongs
             elif action == "open_log":
                 open_path(LOG)
             elif action == "open_settings":
@@ -188,6 +235,11 @@ def run_service(inst: SingleInstance) -> int:
                 checked[0] = now
                 if inst.stop_requested():
                     stop.append(1)
+            if now - looked[0] > BACKEND_RECHECK:  # software installed or removed meanwhile: grey entries in or out
+                looked[0], status = now, backend_status()
+                if status != looked[1]:
+                    looked[1] = status
+                    tray.update(backends=backend_entries(status))
             return bool(stop)
 
         try:

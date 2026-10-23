@@ -35,6 +35,10 @@ You don't need Python or a terminal.
 keyboard are connected. Its menu shows the status and lets you:
 - switch **Subtle mode** on and off (applies immediately)
 - toggle **Start at login**
+- choose the **Lighting** software: OpenRGB, or z13ctl on an ASUS ROG Flow Z13. An option is
+  greyed out, with the reason, until its software is installed and finds your hardware. Switching
+  happens live; if the new one can't be opened, or stops working in its first seconds, Odradek
+  Sync goes back to the previous one and says why in the log
 - open the log or settings
 - **Quit**
 
@@ -57,8 +61,9 @@ Stopped service
 If something's missing it says so, for example "OpenRGB is not installed..." or "No RGB keyboard
 found in OpenRGB...". It keeps checking, so you can fix the problem without restarting it.
 
-**Settings** ("Odradek Sync settings"): `subtle` for the accessibility mode, `autostart`, and
-`keyboard` to choose between several keyboards. Restart Odradek Sync after editing.
+**Settings** ("Odradek Sync settings"): `subtle` for the accessibility mode, `autostart`,
+`keyboard` to choose between several keyboards, and `lighting` (`auto`, `openrgb` or `z13`; the
+tray's Lighting entries set it). Restart Odradek Sync after editing.
 
 **Good to know:**
 - **Ubuntu and some other Linux distros** block reading other programs' memory by default. If

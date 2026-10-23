@@ -67,7 +67,7 @@ def item_props(m: MenuItem) -> dict:
     if not m.enabled:
         p["enabled"] = ("b", False)
     if m.checked is not None:
-        p["toggle-type"] = ("s", "checkmark")
+        p["toggle-type"] = ("s", "radio" if m.radio else "checkmark")
         p["toggle-state"] = ("i", 1 if m.checked else 0)
     return p
 
