@@ -28,10 +28,10 @@ class LightingOutput(Output):
         self.device, self.compositor = device, compositor
 
     def update(self, now, signals, states):
-        self.device.show(self.compositor.frame(now, signals))
+        self.device.render(self.compositor, now, signals)
 
     def close(self):
-        self.device.show(self.compositor.frame(time.time(), SignalPipeline.idle()))
+        self.device.render(self.compositor, time.time(), SignalPipeline.idle())
         self.device.close()
 
 

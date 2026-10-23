@@ -45,6 +45,7 @@ class FrameContext:
 
 class Effect(ABC):
     effect_name = "?"
+    firmware_mode = None            # a device.FirmwareMode, for effects a device's firmware can run itself
 
     def __init__(self, **params):
         self.params = params

@@ -26,7 +26,7 @@ src/odradek_sync/
   signals/       mapping.py: SignalMap (animations -> booleans, from TOML)
                  derivers.py: plug-ins that derive richer signals over time (pulse_rate)
   lighting/      device.py: DeviceRepository / LightingDevice interfaces + registry
-                 openrgb_repository.py, console_repository.py: backends
+                 openrgb_repository.py, z13_repository.py, console_repository.py: backends
                  geometry.py: Geometry, LayoutStrategy (matrix, linear) + LayoutFactory
                  effects/: Effect base, registry/factory, built-in effects
                  compositor.py: EffectMap (TOML) + Compositor (layers, rules, blending)
@@ -172,8 +172,16 @@ with `LayoutFactory().register(...)`. `tests/test_layouts.py` round-trips every 
 ## A new lighting backend
 
 Implement `DeviceRepository.list_devices()` / `open()` and a `LightingDevice.show(colors)`, then
-register it. Candidates: Razer Chroma / Logitech LIGHTSYNC SDKs on Windows, Windows Dynamic
-Lighting, Home Assistant, WLED. Look at `console_repository.py` for the smallest example.
+register it. Give the repository a `HELP` table so the player app can explain problems in its
+words. Candidates: Razer Chroma / Logitech LIGHTSYNC SDKs on Windows, Windows Dynamic Lighting,
+Home Assistant, WLED. Look at `console_repository.py` for the smallest example.
+
+Hardware that can't take frames, only switch between effects its firmware runs (the ROG Flow Z13),
+is a `FirmwareModeDevice`: it implements `apply(FirmwareMode | None)` instead of `show()`. It shows
+the top layer's effect, which must carry a `firmware_mode` (the `aura` effect does), so it needs
+an effect map of its own (`config/effects/z13.toml`), and `lighting.default_effects` picks it.
+`apply(None)` means nothing is showing: hand the device back to its owner's lighting.
+`z13_repository.py` is the example; `lighting.detect_backend()` decides which backend `auto` uses.
 
 ## Windows: help verify
 

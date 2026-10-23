@@ -83,6 +83,9 @@ class AppPiecesTest(unittest.TestCase):
 class FakeRepo:
     """Scripted DeviceRepository: list_devices raises or returns what the test says."""
 
+    from odradek_sync.lighting.openrgb_repository import OpenRGBRepository
+    HELP = OpenRGBRepository.HELP
+
     def __init__(self, script):
         self.script, self.resets = list(script), 0
 

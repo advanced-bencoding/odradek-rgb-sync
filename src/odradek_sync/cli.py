@@ -12,7 +12,7 @@ from . import __version__
 from .config import ConfigError, ConfigLoader
 from .engine import SyncEngine
 from .game import Attach, GameSession
-from .lighting import DeviceError, create_repository, repository_names
+from .lighting import DeviceError, create_repository, default_effects, detect_backend, repository_names
 from .lighting.compositor import Compositor, EffectMap
 from .lighting.effects import available_effects
 from .lighting.geometry import LayoutFactory
@@ -114,7 +114,7 @@ def cmd_effects_list(args):
 def _render_for(device, compositor, seconds, signals_at):
     t0 = time.time()
     while (now := time.time()) - t0 < seconds:
-        device.show(compositor.frame(now, signals_at(now - t0)))
+        device.render(compositor, now, signals_at(now - t0))
         time.sleep(max(0.0, 1 / 30 - (time.time() - now)))
 
 
@@ -139,7 +139,8 @@ def cmd_effects_demo(args):
             _render_for(device, comp, args.seconds, at)
     except KeyboardInterrupt:
         pass
-    device.show(Compositor(effect_map, geometry).frame(time.time(), SignalPipeline.idle()))
+    device.render(Compositor(effect_map, geometry), time.time(), SignalPipeline.idle())
+    device.close()
 
 
 def cmd_effects_show(args):
@@ -151,6 +152,7 @@ def cmd_effects_show(args):
         _render_for(device, compositor, args.seconds or float("inf"), lambda t: {})
     except KeyboardInterrupt:
         pass
+    device.close()
 
 
 def cmd_recon_list(args):
@@ -167,7 +169,7 @@ def cmd_recon_list(args):
 def cmd_recon_watch(args):
     from .recon import watch
     session = attach_for_recon(args, loader_from(args))
-    skip = tuple(p for p in (args.ignore or ["samface_"]))
+    skip = tuple(p for p in (args.ignore or ["samface_"]) if p)  # --ignore "" hides nothing
     try:
         watch(session.reader, log_path=Path(args.log) if args.log else None, ignore=lambda n: n.startswith(skip))
     except KeyboardInterrupt:
@@ -229,6 +231,9 @@ def cmd_recon_discover(args):
 
 # ------------------------------------------------------------------ parser
 
+LIGHTING_HELP = "lighting backend; auto = z13 on an ASUS ROG Flow Z13 (through z13ctl), else openrgb."
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="odradek-sync", description="Mirror Death Stranding's Odradek on RGB devices.")
     p.add_argument("--version", action="version", version=__version__)
@@ -237,10 +242,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     def lighting_args(sp, allow_none=False):
-        sp.add_argument("--lighting", default="openrgb", choices=repository_names() + (["none"] if allow_none else []),
-                        help="lighting backend (none = status only)" if allow_none else "lighting backend")
+        sp.add_argument("--lighting", default="auto", choices=["auto"] + repository_names() + (["none"] if allow_none else []),
+                        help=LIGHTING_HELP + (" none = status only." if allow_none else ""))
         sp.add_argument("--device", help="device name (substring); default: first keyboard")
-        sp.add_argument("--effects", help="effect map (config/effects/<name>.toml; default: default)")
+        sp.add_argument("--effects", help="effect map (config/effects/<name>.toml; default: default, or z13 on a Z13)")
         sp.add_argument("--subtle", action="store_true",
                         help="accessibility mode: gentle effects, no strobes, capped brightness (= --effects subtle)")
 
@@ -254,7 +259,7 @@ def build_parser() -> argparse.ArgumentParser:
     r.set_defaults(func=cmd_run)
 
     d = sub.add_parser("devices", help="list lighting devices")
-    d.add_argument("--lighting", default="openrgb", choices=repository_names())
+    d.add_argument("--lighting", default="auto", choices=["auto"] + repository_names(), help=LIGHTING_HELP)
     d.set_defaults(func=cmd_devices)
 
     s = sub.add_parser("signals", help="show the signal map (what each signal means and its confidence)")
@@ -309,10 +314,12 @@ def main(argv: list[str] | None = None) -> None:
     signal.signal(signal.SIGTERM, _sigterm)
     parser = build_parser()
     args = parser.parse_args(argv)
+    if getattr(args, "lighting", None) == "auto":
+        args.lighting = detect_backend()
     if hasattr(args, "subtle"):
-        if args.subtle and args.effects not in (None, "subtle"):
+        if args.subtle and args.effects not in (None, default_effects(args.lighting, True)):
             parser.error("--subtle and --effects are mutually exclusive")
-        args.effects = "subtle" if args.subtle else (args.effects or "default")
+        args.effects = args.effects or default_effects(args.lighting, args.subtle)
     try:
         args.func(args)
     except (ConfigError, DeviceError, PlatformError) as e:

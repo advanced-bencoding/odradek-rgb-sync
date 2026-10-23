@@ -111,6 +111,23 @@ class EffectsTest(unittest.TestCase):
                 ctx = FrameContext(g, t, {}, {"blue_flash": 0.4})
                 self.assertEqual(len(e.frame(ctx)), g.n, name)
 
+    def test_aura_mirrors_z13_firmware_modes(self):
+        from odradek_sync.config import ConfigError
+        g = LayoutFactory().build(INFO)
+
+        def at(t, **params):
+            e = create_effect("aura", params)
+            e.start(0.0)
+            frame = e.frame(FrameContext(g, t))
+            self.assertEqual(len(set(frame)), 1)       # one zone: the whole board shares a colour
+            return frame[0]
+        self.assertEqual(at(0.0, mode="breathe", color=RED, color2=BLUE, period=4), (0.0, 0.0, 255.0))
+        self.assertEqual(at(2.0, mode="breathe", color=RED, color2=BLUE, period=4), (255.0, 0.0, 0.0))
+        self.assertEqual(at(0.6, mode="strobe", color=RED, period=1), (0.0, 0.0, 0.0))
+        self.assertEqual(at(0.0, color=RED, brightness=1), (25.5, 0.0, 0.0))
+        with self.assertRaises(ConfigError):
+            create_effect("aura", {"color": "#000000"})  # the firmware picks its own colour for black
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -49,6 +49,17 @@ class OpenRGBDevice(LightingDevice):
 
 
 class OpenRGBRepository(DeviceRepository):
+    HELP = {
+        "missing": ("OpenRGB is not installed",
+                    "OpenRGB is not installed. Install it from https://openrgb.org - Odradek Sync will pick it up "
+                    "automatically."),
+        "no_device": ("No keyboard found (plug it in by cable)",
+                      "No RGB keyboard {want}found in OpenRGB. Plug the keyboard in with its USB cable "
+                      "(wireless modes usually aren't supported)."),
+        "no_connection": ("Can't connect to OpenRGB", "Can't connect to OpenRGB. Retrying..."),
+        "lost": ("Reconnecting to OpenRGB", "Lost the connection to OpenRGB (was it closed?). Reconnecting..."),
+    }
+
     def __init__(self, host: str = "127.0.0.1", port: int = 6742, autostart: bool = True,
                  command: str | None = None, client_name: str = "odradek-sync"):
         self.host, self.port, self.autostart, self.command, self.client_name = host, port, autostart, command, client_name

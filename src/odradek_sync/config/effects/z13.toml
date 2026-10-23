@@ -1,0 +1,112 @@
+# Z13 effect map: the same states as default.toml, using only what the ROG Flow Z13 (2025) keyboard
+# can show on its own. It is a single RGB zone running the Aura firmware modes (static, breathe, strobe,
+# cycle, rainbow), so every state is one whole-board mode and BB has no room of its own.
+# Only `aura` effects work here: the keyboard's firmware runs them (the top layer showing something wins,
+# no blending). Where nothing shows ("none"), the keyboard gets back the player's own z13ctl lighting.
+# Preview it on any keyboard: odradek-sync effects demo --effects z13
+# Colours are pre-scaled (#ff9628 at 12% = #1f1205) because that is how a dim glow reaches the firmware.
+format = 1                 # config format version (see RELEASING.md)
+name = "z13"
+fps = 30
+
+# ── The Odradek: the whole keyboard ──
+[[layer]]
+name = "odradek"
+kind = "state"
+region = "all"
+blend = "replace"
+
+  [[layer.rule]]                # the player's own lighting until the game starts (a preview shows black)
+  when = ["no_game"]
+  effect = "none"
+
+  [[layer.rule]]
+  when = ["autotoxemia"]
+  effect = "aura"               # no flicker in firmware: a slow, dim red breath
+  params = { mode = "breathe", color = "#500400", color2 = "#140100", speed = "slow" }
+
+  [[layer.rule]]
+  when = ["orange"]
+  effect = "aura"               # no sweep in firmware: a fast orange breath
+  params = { mode = "breathe", color = "#ff5a00", color2 = "#140700", speed = "fast" }
+
+  [[layer.rule]]
+  when = ["blue", "blue_pulse=rapid"]
+  effect = "aura"               # no strobe: a fast swell that never drops below half brightness
+  params = { mode = "breathe", color = "#146eff", color2 = "#0a3780", speed = "fast" }
+
+  [[layer.rule]]
+  when = ["blue", "blue_pulse=fast"]
+  effect = "aura"               # breathes on its own clock, not in step with the game's flashes
+  params = { mode = "breathe", color = "#146eff", color2 = "#01070f", speed = "normal" }
+
+  [[layer.rule]]
+  when = ["blue"]
+  effect = "aura"
+  params = { mode = "breathe", color = "#146eff", color2 = "#01070f", speed = "slow" }
+
+  [[layer.rule]]
+  when = ["folded"]
+  effect = "aura"
+  params = { mode = "breathe", color = "#1a0f04", color2 = "#0a0602", speed = "slow" }
+
+  [[layer.rule]]                # open, nothing around
+  effect = "aura"
+  params = { mode = "static", color = "#1f1205" }
+
+# ── Odradek one-shot events: a short static colour, then back to the state above (two commands each) ──
+[[layer]]
+name = "odradek_events"
+kind = "trigger"
+region = "all"
+blend = "replace"
+
+  [[layer.rule]]
+  on = "scan"
+  effect = "aura"
+  duration = 1.6
+  params = { mode = "static", color = "#aadcff" }
+
+  [[layer.rule]]
+  on = "waking"
+  effect = "aura"
+  duration = 0.5
+  params = { mode = "static", color = "#ff9628" }
+
+# `odradek-sync effects demo` plays these scenarios through the map above (same as default.toml).
+[[demo]]
+label = "No game running"
+signals = { no_game = true }
+
+[[demo]]
+label = "Folded, no BTs"
+signals = { folded = true }
+
+[[demo]]
+label = "Open, nothing around"
+signals = {}
+
+[[demo]]
+label = "Terrain scan from folded (unfold + scan flash)"
+signals = { folded = true }
+blink = [{ signal = "waking", period = 3.0, width = 0.5 }, { signal = "scan", period = 3.0, width = 1.1, offset = 0.5 }]
+
+[[demo]]
+label = "Blue, slow pulsing (BTs far)"
+signals = { blue = true, blue_pulse = "slow", bb_scared = true }
+
+[[demo]]
+label = "Blue, fast pulsing (BTs at medium range)"
+signals = { blue = true, blue_pulse = "fast", bb_scared = true }
+
+[[demo]]
+label = "Blue, rapid (BTs close)"
+signals = { blue = true, blue_pulse = "rapid", bb_scared = true }
+
+[[demo]]
+label = "Orange: BT very close, BB crying"
+signals = { orange = true, bb_crying = true }
+
+[[demo]]
+label = "Autotoxemia"
+signals = { autotoxemia = true }

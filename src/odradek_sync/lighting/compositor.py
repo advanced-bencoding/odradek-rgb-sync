@@ -221,6 +221,25 @@ class Compositor:
                 rule.effect.start(now)
         return rule
 
+    def check_firmware(self) -> None:
+        """Fail early if a rule can't run on a firmware-mode device (see device.FirmwareModeDevice)."""
+        for layer in self.layers:
+            if not self.geometry.region(layer.region):
+                continue
+            for rule in layer.rules:
+                if rule.effect is not None and rule.effect.firmware_mode is None:
+                    raise ConfigError(f"layer {layer.name}: the {rule.effect_name!r} effect can't run in this "
+                                      "device's firmware; use `aura` effects (see config/effects/z13.toml)")
+
+    def firmware_mode(self):
+        """What a firmware-mode device shows after the last frame(): the top layer showing something wins
+        outright (no blending in firmware). None = no layer is showing anything."""
+        for layer in reversed(self.layers):
+            rule = layer.active
+            if rule is not None and rule.effect is not None and self.geometry.region(layer.region):
+                return rule.effect.firmware_mode
+        return None
+
     def describe(self) -> dict[str, str]:
         """Which rule each layer is showing (for status output)."""
         return {l.name: l.active.label for l in self.layers if l.active}

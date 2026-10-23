@@ -1,11 +1,13 @@
-"""A keyboard output that copes with real life: OpenRGB missing or closed, keyboard not plugged in yet.
+"""A keyboard output that copes with real life: the lighting software (OpenRGB, or z13ctl on a ROG Flow Z13)
+missing or closed, keyboard not plugged in yet.
 
-It keeps retrying in the background and logs each situation once, in plain words.
+It keeps retrying in the background and logs each situation once, in the backend's plain words (its HELP).
 """
 from __future__ import annotations
 
 import time
 
+from ..config import ConfigError
 from ..lighting import BackendMissingError, DeviceError, NoDeviceError, create_repository
 from ..lighting.compositor import Compositor, EffectMap
 from ..lighting.geometry import LayoutFactory
@@ -13,7 +15,7 @@ from ..outputs import Output
 from ..signals import SignalPipeline
 from .userlog import UserLog
 
-RETRY_MISSING = 30.0     # OpenRGB not installed: check again every 30 s (the player may be installing it)
+RETRY_MISSING = 30.0     # lighting software not installed: check again every 30 s (the player may be installing it)
 RETRY_NO_DEVICE = 10.0
 RETRY_ERROR = 10.0
 
@@ -25,6 +27,7 @@ class ResilientKeyboard(Output):
         self.log, self.effect_map, self.overrides, self.on_status = log, effect_map, device_overrides, on_status
         self.selector = selector or None
         self.repo = repo or create_repository("openrgb")
+        self.help = self.repo.HELP
         self.device = None
         self.compositor: Compositor | None = None
         self.next_try = 0.0
@@ -46,21 +49,24 @@ class ResilientKeyboard(Output):
             if geometry.strategy != "MatrixLayout":
                 self.log.info(f"Using fallback layout for this keyboard: {geometry.description.split(';')[0]}")
         except BackendMissingError:
-            self.on_status("OpenRGB is not installed", False)
-            self.log.once("OpenRGB is not installed. Install it from https://openrgb.org - Odradek Sync will "
-                          "pick it up automatically.")
+            self._tell("missing")
             self.next_try = now + RETRY_MISSING
         except NoDeviceError:
-            self.on_status("No keyboard found (plug it in by cable)", False)
-            want = f'named "{self.selector}" ' if self.selector else ""
-            self.log.once(f"No RGB keyboard {want}found in OpenRGB. Plug the keyboard in with its USB cable "
-                          "(wireless modes usually aren't supported).")
+            self._tell("no_device")
             self.next_try = now + RETRY_NO_DEVICE
         except (DeviceError, OSError, ConnectionError, TimeoutError):
-            self.on_status("Can't connect to OpenRGB", False)
-            self.log.once("Can't connect to OpenRGB. Retrying...")
+            self._tell("no_connection")
             self.repo.reset()
             self.next_try = now + RETRY_ERROR
+
+    def _tell(self, problem: str, once: bool = True) -> None:
+        status, line = self.help[problem]
+        self.on_status(status, False)
+        line = line.format(want=f'named "{self.selector}" ' if self.selector else "")
+        if once:
+            self.log.once(line)
+        else:
+            self.log.info(line)
 
     def update(self, now, signals, states):
         if self.device is None:
@@ -69,10 +75,11 @@ class ResilientKeyboard(Output):
             if self.device is None:
                 return
         try:
-            self.device.show(self.compositor.frame(now, signals))
+            self.device.render(self.compositor, now, signals)
+        except ConfigError:
+            raise                               # an effect map this device can't run: a bug, not a lost device
         except Exception:
-            self.log.info("Lost the connection to OpenRGB (was it closed?). Reconnecting...")
-            self.on_status("Reconnecting to OpenRGB", False)
+            self._tell("lost", once=False)
             self.device, self.compositor = None, None
             self.repo.reset()
             self.next_try = now + 2.0
@@ -86,7 +93,8 @@ class ResilientKeyboard(Output):
     def close(self):
         if self.device is not None and self.compositor is not None:
             try:
-                self.device.show(self.compositor.frame(time.time(), SignalPipeline.idle()))
+                self.device.render(self.compositor, time.time(), SignalPipeline.idle())
+                self.device.close()
             except Exception:
                 pass
         self.repo.reset()

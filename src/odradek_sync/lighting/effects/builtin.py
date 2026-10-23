@@ -1,10 +1,13 @@
 """Built-in effects. Each takes its parameters from the effect map (config/effects/*.toml)."""
 from __future__ import annotations
 
+import colorsys
 import math
 import random
 
-from ...util import BLACK, mix, scale
+from ...config import ConfigError
+from ...util import BLACK, mix, scale, to_rgb
+from ..device import FirmwareMode
 from .base import Effect, FrameContext, register_effect
 
 
@@ -198,6 +201,52 @@ class Raindrops(Effect):
             k = max([max(0.0, 1 - abs(p[1] - (t - t0) * self.speed) / 1.2) for col, t0 in drops if col == int(p[0])] or [0.0])
             return mix(self.bg, self.c, k)
         return self.each(ctx, led)
+
+
+@register_effect("aura")
+class Aura(Effect):
+    """One of the ASUS Aura firmware modes built into the ROG Flow Z13, in one colour across the device (each
+    Z13 zone is single-colour). The Z13 runs it in firmware; other devices get this preview of it.
+    params: mode (static, breathe, strobe, cycle, rainbow), color, color2 (breathe only),
+    speed (slow, normal, fast), brightness (0-3), period (s: preview speed, overrides speed)."""
+
+    MODES = ("static", "breathe", "strobe", "cycle", "rainbow")
+    # The firmware's real periods are unknown: these are guesses until someone times a Z13.
+    PERIODS = {"breathe": {"slow": 6.0, "normal": 4.0, "fast": 2.0},
+               "strobe": {"slow": 1.0, "normal": 0.5, "fast": 0.25},
+               "cycle": {"slow": 20.0, "normal": 10.0, "fast": 5.0}}
+    # Hardware levels 0-3, scaled the way g-helper dims colours for them (Aura.cs ColorDim).
+    LEVELS = (0.0, 0.1, 0.3, 1.0)
+
+    def setup(self):
+        self.mode, self.speed = self.p("mode", "static"), self.p("speed", "normal")
+        if self.mode not in self.MODES:
+            raise ConfigError(f"aura.mode must be one of {self.MODES}, got {self.mode!r}")
+        if self.speed not in ("slow", "normal", "fast"):
+            raise ConfigError(f"aura.speed must be slow, normal or fast, got {self.speed!r}")
+        level = int(self.p("brightness", 3))
+        if not 0 <= level <= 3:
+            raise ConfigError(f"aura.brightness must be 0-3, got {level}")
+        self.k = self.LEVELS[level]
+        self.c, self.c2 = self.color(), self.color("color2", "#000000")
+        if self.mode in ("static", "breathe", "strobe") and max(self.c) == 0:
+            # The firmware reads an all-zero colour as "pick one yourself" (z13ctl PROTOCOL.md, randFlag)
+            raise ConfigError("aura.color can't be black: the Z13 shows a colour of its own choosing")
+        family = "breathe" if self.mode == "breathe" else "strobe" if self.mode == "strobe" else "cycle"
+        self.period = float(self.p("period", self.PERIODS[family][self.speed]))
+        self.firmware_mode = FirmwareMode(self.mode, to_rgb(self.c), to_rgb(self.c2), self.speed, level)
+
+    def render(self, t, ctx):
+        ph = t % self.period / self.period
+        if self.mode == "breathe":
+            c = mix(self.c2, self.c, 0.5 - 0.5 * math.cos(2 * math.pi * ph))
+        elif self.mode == "strobe":
+            c = self.c if ph < 0.5 else BLACK
+        elif self.mode in ("cycle", "rainbow"):   # rainbow can only cycle on one zone
+            c = tuple(255.0 * v for v in colorsys.hsv_to_rgb(ph, 1.0, 1.0))
+        else:
+            c = self.c
+        return [scale(c, self.k)] * ctx.geometry.n
 
 
 __all__ = ["FrameContext"]

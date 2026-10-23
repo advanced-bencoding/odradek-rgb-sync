@@ -22,6 +22,7 @@ from .. import __version__
 from ..config import ConfigLoader
 from ..engine import SyncEngine
 from ..game import Attach, GameSession
+from ..lighting import create_repository, default_effects, detect_backend
 from ..lighting.compositor import EffectMap
 from ..platform import PlatformError, current_platform
 from ..signals import SignalMap, SignalPipeline
@@ -144,11 +145,15 @@ def run_service(inst: SingleInstance) -> int:
         loader = ConfigLoader([])
         profile = loader.game(GAME)
         smap = SignalMap.from_dict(loader.load("signals", GAME))
-        effect_maps = {name: EffectMap.from_dict(loader.load("effects", name)) for name in ("default", "subtle")}
-        keyboard = ResilientKeyboard(log, effect_maps["subtle" if settings.subtle else "default"], loader.devices(),
-                                     settings.keyboard, on_status=board.set_keyboard)
+        backend = detect_backend()          # a ROG Flow Z13 goes through z13ctl; everything else through OpenRGB
+        if backend == "z13":
+            log.info("ASUS ROG Flow Z13 detected: lighting its keyboard through z13ctl")
+        effect_maps = {subtle: EffectMap.from_dict(loader.load("effects", default_effects(backend, subtle)))
+                       for subtle in (False, True)}
+        keyboard = ResilientKeyboard(log, effect_maps[settings.subtle], loader.devices(), settings.keyboard,
+                                     repo=create_repository(backend), on_status=board.set_keyboard)
         session = GameSession(current_platform(), profile, smap.animations, user_cache_dir(), log=lambda m: None)
-        engine = SyncEngine(session, SignalPipeline(smap), [keyboard], fps=effect_maps["default"].fps,
+        engine = SyncEngine(session, SignalPipeline(smap), [keyboard], fps=effect_maps[False].fps,
                             log=lambda m: None, on_status=StatusMessages(log, board))
         checked = [0.0]
 
@@ -158,7 +163,7 @@ def run_service(inst: SingleInstance) -> int:
             elif action == "toggle_subtle":
                 settings.subtle = not settings.subtle
                 settings.save(SETTINGS)
-                keyboard.set_effect_map(effect_maps["subtle" if settings.subtle else "default"])
+                keyboard.set_effect_map(effect_maps[settings.subtle])
                 tray.update(subtle=settings.subtle)
                 log.info("Subtle mode " + ("on" if settings.subtle else "off"))
             elif action == "toggle_autostart":

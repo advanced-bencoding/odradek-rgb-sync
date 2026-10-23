@@ -19,7 +19,9 @@ game memory ──► animation states ──► signals ──► effect map �
 You don't need Python or a terminal.
 
 1. **Install [OpenRGB](https://openrgb.org)** and check that it sees your keyboard. Plug the
-   keyboard in with its USB cable; wireless modes usually can't be controlled.
+   keyboard in with its USB cable; wireless modes usually can't be controlled. On an **ASUS ROG
+   Flow Z13 (2025)**, install [z13ctl](https://github.com/dahui/z13ctl) instead (see
+   [ASUS ROG Flow Z13](#asus-rog-flow-z13-2025)); Odradek Sync detects the Z13 by itself.
 2. **Get Odradek Sync** from the [releases page](../../releases):
    - **Windows:** run `OdradekSync-<version>-setup.exe`. No admin rights needed. It adds "Odradek
      Sync", "Stop Odradek Sync", "Odradek Sync log" and "Odradek Sync settings" to the Start menu.
@@ -78,6 +80,7 @@ found in OpenRGB...". It keeps checking, so you can fix the problem without rest
 | macOS | Not supported (no memory backend) |
 | Game build | DS:DC Epic Games Store, October 2026. Other builds may need `recon discover` |
 | Lighting | OpenRGB (tested: AULA F75 over USB). Keyboards without explicit support get an automatic fallback layout. A terminal preview for development |
+| ASUS ROG Flow Z13 (2025) | Through z13ctl's daemon, picked automatically. Written and unit-tested, **not tested on a Z13 yet**. Help wanted |
 | Mapped states | scan, waking, folded, blue (rapid/fast/slow), orange, autotoxemia, BB scared/crying/searching |
 | Not mapped yet | static orange while BTs follow you, red, orange spin speed (see `odradek-sync signals`) |
 
@@ -111,8 +114,10 @@ odradek-sync run --subtle           # accessibility mode: gentle effects, no str
 odradek-sync run --lighting none     # status lines only
 odradek-sync run --record session.jsonl        # also log every animation/signal change
 odradek-sync signals                 # what each signal means, and how sure we are
-odradek-sync devices                 # lighting devices OpenRGB sees
+odradek-sync devices                 # lighting devices OpenRGB (or z13ctl, on a Z13) sees
 ```
+
+`--lighting` defaults to `auto`: `z13` on an ASUS ROG Flow Z13, `openrgb` everywhere else.
 
 `run` waits for the game and for the Odradek's animations to load. It finds them once (about
 20 s of scanning), caches their addresses, and re-finds them after a game restart or when an
@@ -200,6 +205,24 @@ your keyboard's layout and logs what it chose (`odradek-sync devices` shows it t
 On a 60% or 65% board there's no F-row, so BB uses the number row (with Esc) instead. Device
 files in `config/devices/` are only needed to fine-tune this.
 
+### ASUS ROG Flow Z13 (2025)
+
+OpenRGB can't drive the Z13's lighting, so on a Z13 Odradek Sync goes through
+[z13ctl](https://github.com/dahui/z13ctl) instead. It notices the Z13 by itself; there's nothing to
+choose. Install z13ctl, run `sudo z13ctl setup` once, and turn on its service:
+`systemctl --user enable --now z13ctl.socket`.
+
+The Z13 keyboard is one colour across the whole board, and it can only run its own built-in
+effects (steady, breathing between two colours, strobe, colour cycle). So the Z13 gets its own,
+simpler effect map (`config/effects/z13.toml`; `z13_subtle.toml` for subtle mode): no per-key
+effects and no BB row, but every Odradek state still has its own colour and rhythm. Until the game
+starts, and when Odradek Sync stops, your keyboard goes back to the lighting you set in z13ctl. If
+z13ctl puts your lighting back by itself (after sleep, or when you reattach the keyboard), Odradek
+Sync takes over again within a few seconds.
+
+Preview the Z13 look on any keyboard with `odradek-sync effects demo --effects z13`. The speeds of
+the Z13's breathing and strobe are estimates until someone times them on a real Z13.
+
 ## Configuration
 
 All game knowledge and every lighting choice is data, in TOML files:
@@ -235,8 +258,9 @@ describes the versioning rules and the release process.
 - **Single-player focus.** Death Stranding has online features through the Epic Online
   Services SDK. We know of no anti-cheat in DS:DC, and reading memory is passive, but nobody has
   verified this against any publisher policy. Use at your own discretion.
-- **No guessing at hardware.** Lighting only goes through documented protocols (OpenRGB). We
-  don't send experimental packets to vendor HID channels, which can corrupt keyboard firmware.
+- **No guessing at hardware.** Lighting only goes through documented protocols (OpenRGB, and
+  z13ctl's daemon on a ROG Flow Z13). We don't send experimental packets to vendor HID channels,
+  which can corrupt keyboard firmware.
 
 ## License
 

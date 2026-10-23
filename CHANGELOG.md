@@ -8,6 +8,13 @@ changes and anything users must do under **Changed** with a ⚠️.
 
 ## [Unreleased]
 
+### Added
+- ASUS ROG Flow Z13 (2025) support through [z13ctl](https://github.com/dahui/z13ctl), picked
+  automatically on a Z13. The keyboard shows each Odradek state with its own built-in effects
+  (one colour across the board), and goes back to your own z13ctl lighting when the game isn't
+  running. Not tested on a real Z13 yet.
+- `--lighting auto` (the new default) picks z13 on a Z13 and OpenRGB everywhere else.
+
 ## [0.1.0] - 2026-10-17
 
 First release. Linux is tested; Windows is built but untested, so this is published as a pre-release.

@@ -1,0 +1,81 @@
+# Subtle / accessibility effect map for the ROG Flow Z13: the same states as z13.toml, shown gently.
+#  - no strobes; slow or normal breathing only, about half as bright
+#  - no one-shot flashes for the scan or unfolding: the firmware can't fade them in, so they'd be hard steps
+# The [accessibility] filter of subtle.toml can't apply here (the firmware draws the frames), so the gentleness
+# is in the modes and colours themselves.
+# Use with: odradek-sync run --subtle   (on a Z13 this picks z13_subtle)
+format = 1                 # config format version (see RELEASING.md)
+name = "z13_subtle"
+fps = 30
+
+[[layer]]
+name = "odradek"
+kind = "state"
+region = "all"
+blend = "replace"
+
+  [[layer.rule]]                # the player's own lighting until the game starts
+  when = ["no_game"]
+  effect = "none"
+
+  [[layer.rule]]
+  when = ["autotoxemia"]
+  effect = "aura"
+  params = { mode = "breathe", color = "#280200", color2 = "#0a0000", speed = "slow" }
+
+  [[layer.rule]]
+  when = ["orange"]
+  effect = "aura"
+  params = { mode = "breathe", color = "#732800", color2 = "#140700", speed = "normal" }
+
+  [[layer.rule]]
+  when = ["blue", "blue_pulse=rapid"]
+  effect = "aura"               # steady, like the game's own held light
+  params = { mode = "static", color = "#093172" }
+
+  [[layer.rule]]
+  when = ["blue", "blue_pulse=fast"]
+  effect = "aura"
+  params = { mode = "breathe", color = "#093172", color2 = "#01070f", speed = "normal" }
+
+  [[layer.rule]]
+  when = ["blue"]
+  effect = "aura"
+  params = { mode = "breathe", color = "#093172", color2 = "#01070f", speed = "slow" }
+
+  [[layer.rule]]
+  when = ["folded"]
+  effect = "aura"
+  params = { mode = "breathe", color = "#0c0702", color2 = "#050301", speed = "slow" }
+
+  [[layer.rule]]
+  effect = "aura"
+  params = { mode = "static", color = "#0e0802" }
+
+[[demo]]
+label = "Folded, no BTs"
+signals = { folded = true }
+
+[[demo]]
+label = "Open, nothing around"
+signals = {}
+
+[[demo]]
+label = "Blue, slow pulsing (BTs far)"
+signals = { blue = true, blue_pulse = "slow" }
+
+[[demo]]
+label = "Blue, fast pulsing (BTs at medium range)"
+signals = { blue = true, blue_pulse = "fast" }
+
+[[demo]]
+label = "Blue, rapid (BTs close)"
+signals = { blue = true, blue_pulse = "rapid" }
+
+[[demo]]
+label = "Orange: BT very close"
+signals = { orange = true }
+
+[[demo]]
+label = "Autotoxemia"
+signals = { autotoxemia = true }

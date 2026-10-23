@@ -1,8 +1,11 @@
 """Lighting devices and where they come from.
 
-`DeviceRepository` hides the lighting backend (OpenRGB today; a vendor SDK, Windows Dynamic
-Lighting or a test double tomorrow). It lists devices and opens one as a `LightingDevice`, which
-only needs to describe its LEDs and accept a full frame of colours.
+`DeviceRepository` hides the lighting backend (OpenRGB, the ROG Flow Z13 through z13ctl; a vendor
+SDK, Windows Dynamic Lighting or a test double tomorrow). It lists devices and opens one as a
+`LightingDevice`, which only needs to describe its LEDs and accept a full frame of colours.
+
+A `FirmwareModeDevice` can't take frames: it only switches between modes its firmware runs itself
+(the Z13). It shows the top active layer's effect, which must name a firmware mode (`aura`).
 """
 from __future__ import annotations
 
@@ -32,6 +35,16 @@ class DeviceInfo:
         return len(self.leds)
 
 
+@dataclass(frozen=True)
+class FirmwareMode:
+    """A lighting mode the device's firmware runs by itself (ASUS Aura on the ROG Flow Z13)."""
+    mode: str                       # static, breathe, strobe, cycle, rainbow
+    color: RGB
+    color2: RGB = (0, 0, 0)         # breathe only
+    speed: str = "normal"           # slow, normal, fast
+    brightness: int = 3             # 0 (off) - 3
+
+
 class LightingDevice(ABC):
     info: DeviceInfo
 
@@ -39,17 +52,51 @@ class LightingDevice(ABC):
     def show(self, colors: Sequence[RGB]) -> None:
         """Display one frame: exactly one colour per LED."""
 
+    def render(self, compositor, now: float, signals: dict) -> None:
+        """Show what the compositor has for this moment."""
+        self.show(compositor.frame(now, signals))
+
     def close(self) -> None:
         pass
 
 
+class FirmwareModeDevice(LightingDevice):
+    _checked = None                 # the compositor whose effect map was last checked
+
+    def render(self, compositor, now: float, signals: dict) -> None:
+        if compositor is not self._checked:
+            compositor.check_firmware()
+            self._checked = compositor
+        compositor.frame(now, signals)          # advances triggers and state rules
+        self.apply(compositor.firmware_mode())
+
+    def show(self, colors: Sequence[RGB]) -> None:
+        raise DeviceError(f"{self.info.name} runs firmware lighting modes and can't show frames")
+
+    @abstractmethod
+    def apply(self, mode: FirmwareMode | None) -> None:
+        """Switch to `mode` (nothing to do if it's already showing). None = nothing to show: hand the
+        device back to the lighting its owner set up."""
+
+
 class DeviceRepository(ABC):
+    # Plain-language status (tray) and log lines for the player app, per problem. {want} = 'named "x" ' or ''.
+    HELP = {
+        "missing": ("Lighting software is not installed", "The lighting software this needs is not installed."),
+        "no_device": ("No keyboard found", "No RGB keyboard {want}found."),
+        "no_connection": ("Can't connect to the lighting software", "Can't connect to the lighting software. Retrying..."),
+        "lost": ("Reconnecting to the keyboard", "Lost the connection to the keyboard. Reconnecting..."),
+    }
+
     @abstractmethod
     def list_devices(self) -> list[DeviceInfo]: ...
 
     @abstractmethod
     def open(self, selector: str | None = None) -> LightingDevice:
         """Open a device by (part of) its name; None = the first keyboard."""
+
+    def reset(self) -> None:
+        """Forget any connection (after an error); the next call reconnects."""
 
 
 class DeviceError(RuntimeError):
