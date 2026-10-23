@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "odradek-sync"
-version = "0.1.0"
+version = "0.2.0b1"
 description = "Mirror Death Stranding's Odradek on your RGB keyboard by reading game state from memory (read-only)."
 readme = "README.md"
 requires-python = ">=3.11"
