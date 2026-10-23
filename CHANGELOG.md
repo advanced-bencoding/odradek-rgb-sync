@@ -9,12 +9,12 @@ changes and anything users must do under **Changed** with a ⚠️.
 ## [Unreleased]
 
 ### Added
-- ASUS ROG Flow Z13 (2025) support through [z13ctl](https://github.com/dahui/z13ctl), picked
-  automatically on a Z13. The keyboard shows each Odradek state with its own built-in effects
+- ASUS ROG Flow Z13 (2025) support on Linux through [z13ctl](https://github.com/dahui/z13ctl),
+  picked automatically on a Z13 (not on Windows: z13ctl is Linux-only). The keyboard shows each Odradek state with its own built-in effects
   (one colour across the board), and goes back to your own z13ctl lighting when the game isn't
   running. Not tested on a real Z13 yet.
 - `--lighting auto` (the new default) picks z13 on a Z13 and OpenRGB everywhere else.
-- Tray menu entries to choose the lighting software (OpenRGB, or z13ctl on a Z13). Software that
+- Tray menu entries to choose the lighting software (OpenRGB, or z13ctl on a Z13 with Linux). Software that
   isn't installed, or finds no hardware, is greyed out with the reason. Switching is live; if the
   new choice fails, Odradek Sync goes back to the previous one. The choice is saved as `lighting`
   in the settings file.

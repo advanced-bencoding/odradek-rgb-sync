@@ -18,7 +18,7 @@ autostart = {autostart}
 keyboard = "{keyboard}"
 
 # Which lighting software drives the keyboard: "auto" (z13ctl on an ASUS ROG Flow Z13, OpenRGB
-# everywhere else), "openrgb" or "z13". The tray menu's Lighting entries change this.
+# everywhere else), "openrgb" or "z13" (Linux only). The tray menu's Lighting entries change this.
 lighting = "{lighting}"
 """
 LIGHTING = ("auto", "openrgb", "z13")

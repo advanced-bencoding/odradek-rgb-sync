@@ -16,12 +16,14 @@ import json
 import os
 import shutil
 import socket
+import sys
 import time
 from pathlib import Path
 
 from .device import (BackendMissingError, DeviceError, DeviceInfo, DeviceRepository, FirmwareMode, FirmwareModeDevice,
                      LedInfo, NoDeviceError, pick)
 
+Z13_PLATFORM = sys.platform.startswith("linux")   # z13ctl is Linux-only (hidraw), and so is this backend
 SYSFS = Path("/sys/class/hidraw")
 # HID_ID of each zone's USB device (bus 0003 = USB, vendor 0b05 = ASUS) -> zone, product name, kind
 ZONES = {
@@ -197,12 +199,14 @@ class Z13Repository(DeviceRepository):
         self.daemon, self.sysfs = Z13ctl(socket_file), Path(sysfs or SYSFS)
 
     def list_devices(self) -> list[DeviceInfo]:
+        if not Z13_PLATFORM:
+            raise BackendMissingError("ASUS ROG Flow Z13 lighting works on Linux only (z13ctl is Linux-only)")
         names = {z[0]: z for z in ZONES.values()}
         return [DeviceInfo(zone, names[zone][1], names[zone][2], (LedInfo(0, zone.title()),), ((0,),))
                 for zone in find_zones(self.sysfs)]
 
     def open(self, selector: str | None = None) -> Z13Device:
-        devices = self.list_devices()
+        devices = self.list_devices()           # raises on anything but Linux
         if not devices:
             raise NoDeviceError("no ASUS ROG Flow Z13 keyboard or lightbar found")
         info = pick(devices, selector)

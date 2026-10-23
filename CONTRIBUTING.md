@@ -181,7 +181,8 @@ is a `FirmwareModeDevice`: it implements `apply(FirmwareMode | None)` instead of
 the top layer's effect, which must carry a `firmware_mode` (the `aura` effect does), so it needs
 an effect map of its own (`config/effects/z13.toml`), and `lighting.default_effects` picks it.
 `apply(None)` means nothing is showing: hand the device back to its owner's lighting.
-`z13_repository.py` is the example; `lighting.detect_backend()` decides which backend `auto` uses.
+`z13_repository.py` is the example (Linux only, like z13ctl: on other systems it reports itself
+unavailable); `lighting.detect_backend()` decides which backend `auto` uses.
 
 ## Windows: help verify
 

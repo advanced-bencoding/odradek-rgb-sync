@@ -169,6 +169,9 @@ class LightingChoiceTest(unittest.TestCase):
             backend, note = choose_backend("z13", no_z13)
             self.assertEqual(backend, "openrgb")
             self.assertIn("no Z13 found", note)
+            backend, note = choose_backend("z13", {"openrgb": None, "z13": "Linux only"})   # a Windows machine
+            self.assertEqual(backend, "openrgb")
+            self.assertIn("Linux only", note)
 
 
 if __name__ == "__main__":

@@ -20,8 +20,9 @@ You don't need Python or a terminal.
 
 1. **Install [OpenRGB](https://openrgb.org)** and check that it sees your keyboard. Plug the
    keyboard in with its USB cable; wireless modes usually can't be controlled. On an **ASUS ROG
-   Flow Z13 (2025)**, install [z13ctl](https://github.com/dahui/z13ctl) instead (see
-   [ASUS ROG Flow Z13](#asus-rog-flow-z13-2025)); Odradek Sync detects the Z13 by itself.
+   Flow Z13 (2025)** running Linux, install [z13ctl](https://github.com/dahui/z13ctl) instead (see
+   [ASUS ROG Flow Z13](#asus-rog-flow-z13-2025)); Odradek Sync detects the Z13 by itself. The Z13
+   isn't supported on Windows.
 2. **Get Odradek Sync** from the [releases page](../../releases):
    - **Windows:** run `OdradekSync-<version>-setup.exe`. No admin rights needed. It adds "Odradek
      Sync", "Stop Odradek Sync", "Odradek Sync log" and "Odradek Sync settings" to the Start menu.
@@ -35,7 +36,7 @@ You don't need Python or a terminal.
 keyboard are connected. Its menu shows the status and lets you:
 - switch **Subtle mode** on and off (applies immediately)
 - toggle **Start at login**
-- choose the **Lighting** software: OpenRGB, or z13ctl on an ASUS ROG Flow Z13. An option is
+- choose the **Lighting** software: OpenRGB, or z13ctl on an ASUS ROG Flow Z13 (Linux only). An option is
   greyed out, with the reason, until its software is installed and finds your hardware. Switching
   happens live; if the new one can't be opened, or stops working in its first seconds, Odradek
   Sync goes back to the previous one and says why in the log
@@ -62,7 +63,7 @@ If something's missing it says so, for example "OpenRGB is not installed..." or 
 found in OpenRGB...". It keeps checking, so you can fix the problem without restarting it.
 
 **Settings** ("Odradek Sync settings"): `subtle` for the accessibility mode, `autostart`,
-`keyboard` to choose between several keyboards, and `lighting` (`auto`, `openrgb` or `z13`; the
+`keyboard` to choose between several keyboards, and `lighting` (`auto`, `openrgb` or `z13` (Linux only); the
 tray's Lighting entries set it). Restart Odradek Sync after editing.
 
 **Good to know:**
@@ -85,7 +86,7 @@ tray's Lighting entries set it). Restart Odradek Sync after editing.
 | macOS | Not supported (no memory backend) |
 | Game build | DS:DC Epic Games Store, October 2026. Other builds may need `recon discover` |
 | Lighting | OpenRGB (tested: AULA F75 over USB). Keyboards without explicit support get an automatic fallback layout. A terminal preview for development |
-| ASUS ROG Flow Z13 (2025) | Through z13ctl's daemon, picked automatically. Written and unit-tested, **not tested on a Z13 yet**. Help wanted |
+| ASUS ROG Flow Z13 (2025) | **Linux only**, through z13ctl's daemon, picked automatically. Written and unit-tested, **not tested on a Z13 yet**. Help wanted. Not supported on Windows (z13ctl is Linux-only, and OpenRGB doesn't support the Z13) |
 | Mapped states | scan, waking, folded, blue (rapid/fast/slow), orange, autotoxemia, BB scared/crying/searching |
 | Not mapped yet | static orange while BTs follow you, red, orange spin speed (see `odradek-sync signals`) |
 
@@ -122,7 +123,7 @@ odradek-sync signals                 # what each signal means, and how sure we a
 odradek-sync devices                 # lighting devices OpenRGB (or z13ctl, on a Z13) sees
 ```
 
-`--lighting` defaults to `auto`: `z13` on an ASUS ROG Flow Z13, `openrgb` everywhere else.
+`--lighting` defaults to `auto`: `z13` on an ASUS ROG Flow Z13 running Linux, `openrgb` everywhere else.
 
 `run` waits for the game and for the Odradek's animations to load. It finds them once (about
 20 s of scanning), caches their addresses, and re-finds them after a game restart or when an
@@ -211,6 +212,9 @@ On a 60% or 65% board there's no F-row, so BB uses the number row (with Esc) ins
 files in `config/devices/` are only needed to fine-tune this.
 
 ### ASUS ROG Flow Z13 (2025)
+
+**Linux only.** z13ctl only runs on Linux, so a Z13 running Windows isn't supported: there the
+tray shows the Z13 entry greyed out, "Linux only".
 
 OpenRGB can't drive the Z13's lighting, so on a Z13 Odradek Sync goes through
 [z13ctl](https://github.com/dahui/z13ctl) instead. It notices the Z13 by itself; there's nothing to

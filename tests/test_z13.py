@@ -182,6 +182,14 @@ class Z13Test(unittest.TestCase):
         kb.apply(FirmwareMode("static", (255, 0, 0), brightness=0))
         self.assertEqual(self.daemon.lighting(), [{"cmd": "off", "device": "/dev/hidraw1"}])
 
+    def test_linux_only(self):
+        from odradek_sync.lighting import backend_status
+        with mock.patch.object(z13, "Z13_PLATFORM", False):
+            self.assertEqual(backend_status()["z13"], "Linux only")
+            with self.assertRaises(BackendMissingError) as e:
+                self.repo().open()
+            self.assertIn("Linux only", str(e.exception))
+
     def test_missing_z13ctl_or_its_daemon(self):
         repo = z13.Z13Repository(str(self.dir / "no.sock"), self.sysfs)
         with mock.patch.object(z13.shutil, "which", return_value=None):

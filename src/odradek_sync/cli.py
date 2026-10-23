@@ -231,7 +231,7 @@ def cmd_recon_discover(args):
 
 # ------------------------------------------------------------------ parser
 
-LIGHTING_HELP = "lighting backend; auto = z13 on an ASUS ROG Flow Z13 (through z13ctl), else openrgb."
+LIGHTING_HELP = "lighting backend; auto = z13 on an ASUS ROG Flow Z13 (through z13ctl, Linux only), else openrgb."
 
 
 def build_parser() -> argparse.ArgumentParser:
