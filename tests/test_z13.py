@@ -60,6 +60,7 @@ class Clock:
         self.mono += s
 
 
+@unittest.skipUnless(z13.Z13_PLATFORM, "the Z13 backend is Linux-only (and its fake daemon needs Unix sockets)")
 class Z13Test(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -134,15 +135,6 @@ class Z13Test(unittest.TestCase):
         kb.close()
         self.assertEqual(self.daemon.lighting()[-1], {"cmd": "off", "device": "/dev/hidraw1"})
 
-    def test_player_lighting_follows_z13ctl_normalisation(self):
-        self.assertEqual(z13.player_lighting({}, "keyboard"), z13.Z13CTL_DEFAULT)
-        own = {"lighting": SAVED["lighting"], "devices": {"lightbar": {"enabled": True, "mode": "static",
-                                                                      "color": "FFFFFF", "brightness": 1}}}
-        self.assertEqual(z13.player_lighting(own, "keyboard"), SAVED["lighting"])
-        bar = z13.player_lighting(own, "lightbar")
-        self.assertEqual((bar["mode"], bar["color"], bar["color2"], bar["speed"], bar["brightness"]),
-                         ("static", "FFFFFF", "0000FF", "slow", 1))
-
     def test_resends_after_connecting_and_after_sleep(self):
         kb = self.repo().open()
         c = self.compositor(kb)
@@ -182,14 +174,6 @@ class Z13Test(unittest.TestCase):
         kb.apply(FirmwareMode("static", (255, 0, 0), brightness=0))
         self.assertEqual(self.daemon.lighting(), [{"cmd": "off", "device": "/dev/hidraw1"}])
 
-    def test_linux_only(self):
-        from odradek_sync.lighting import backend_status
-        with mock.patch.object(z13, "Z13_PLATFORM", False):
-            self.assertEqual(backend_status()["z13"], "Linux only")
-            with self.assertRaises(BackendMissingError) as e:
-                self.repo().open()
-            self.assertIn("Linux only", str(e.exception))
-
     def test_missing_z13ctl_or_its_daemon(self):
         repo = z13.Z13Repository(str(self.dir / "no.sock"), self.sysfs)
         with mock.patch.object(z13.shutil, "which", return_value=None):
@@ -215,6 +199,28 @@ class Z13Test(unittest.TestCase):
         self.assertEqual(text[1], "Keyboard detected: ASUS ROG Flow Z13 keyboard")
         self.assertEqual(len(text), 2)                  # an exact 1x1 layout: no fallback-layout notice
         self.assertEqual(self.daemon.lighting()[-1]["color"], "1A0F04")
+
+
+
+class Z13AnywhereTest(unittest.TestCase):
+    """What holds on every system, Windows included."""
+
+    def test_player_lighting_follows_z13ctl_normalisation(self):
+        self.assertEqual(z13.player_lighting({}, "keyboard"), z13.Z13CTL_DEFAULT)
+        own = {"lighting": SAVED["lighting"], "devices": {"lightbar": {"enabled": True, "mode": "static",
+                                                                      "color": "FFFFFF", "brightness": 1}}}
+        self.assertEqual(z13.player_lighting(own, "keyboard"), SAVED["lighting"])
+        bar = z13.player_lighting(own, "lightbar")
+        self.assertEqual((bar["mode"], bar["color"], bar["color2"], bar["speed"], bar["brightness"]),
+                         ("static", "FFFFFF", "0000FF", "slow", 1))
+
+    def test_linux_only(self):
+        from odradek_sync.lighting import backend_status
+        with mock.patch.object(z13, "Z13_PLATFORM", False):
+            self.assertEqual(backend_status()["z13"], "Linux only")
+            with self.assertRaises(BackendMissingError) as e:
+                z13.Z13Repository("unused.sock", "unused").open()
+            self.assertIn("Linux only", str(e.exception))
 
 
 if __name__ == "__main__":
