@@ -73,7 +73,7 @@ tray's Lighting entries set it). Restart Odradek Sync after editing.
   the log says "permission denied", run `sudo sysctl kernel.yama.ptrace_scope=0` once (it lasts
   until reboot). Fedora and Arch allow it out of the box.
 - **Windows** may warn about an unrecognised app (SmartScreen), because the builds aren't
-  code-signed. The Windows player app hasn't been tested on real Windows yet; see Status.
+  code-signed.
 - **Linux AppImages need FUSE.** On a few distros that means installing `libfuse2`.
 - **OpenRGB takes over some keyboards just by running.** The AULA F75, for one, ignores its own
   styles and its knob whenever OpenRGB has detected it, even with nothing lighting it, and OpenRGB
@@ -88,8 +88,8 @@ tray's Lighting entries set it). Restart Odradek Sync after editing.
 | Area | Status |
 | --- | --- |
 | Linux, game under Proton/Wine | **Works.** Developed and tested on Fedora 44 + GE-Proton (Heroic, Epic build) |
-| Windows, native | **Works** from the developer CLI: tested on Windows 10 with the standard edition 1.0.8 (Epic) and an AULA F75 through OpenRGB. Help wanted with other setups |
-| Player app | Linux AppImage built and tested; the Windows installer builds, but the app isn't tested on Windows yet |
+| Windows, native | **Works.** Tested on Windows 10 with the standard edition 1.0.8 (Epic), the installed player app and the developer CLI, and an AULA F75 through OpenRGB. Help wanted with other setups |
+| Player app | Linux AppImage and Windows installer both tested (on Windows 10: install, tray, start at login, following the game, uninstall) |
 | macOS | Not supported (no memory backend) |
 | Game build | Standard edition 1.0.8 and Director's Cut (October 2026), both Epic Games Store; detected automatically. Other builds may need `recon discover` |
 | Lighting | OpenRGB (tested: AULA F75 over USB). Keyboards without explicit support get an automatic fallback layout. A terminal preview for development |
@@ -272,8 +272,7 @@ object layout for a new game build. [CONTRIBUTING.md](CONTRIBUTING.md) walks thr
 
 ## Versions
 
-Releases follow [Semantic Versioning](https://semver.org) (0.x while things are still
-changing). What changed in each one is in [CHANGELOG.md](CHANGELOG.md). [RELEASING.md](RELEASING.md)
+Releases follow [Semantic Versioning](https://semver.org); 1.0.0 is the first full release. What changed in each one is in [CHANGELOG.md](CHANGELOG.md). [RELEASING.md](RELEASING.md)
 describes the versioning rules and the release process.
 
 ## Safety and fair play

@@ -206,8 +206,8 @@ unavailable); `lighting.detect_backend()` decides which backend `auto` uses.
 
 The Windows backend (`platform/windows.py`) uses `ReadProcessMemory`, `VirtualQueryEx` and
 Toolhelp snapshots. It's tested on Windows 10 with the standard edition 1.0.8 (Epic), and
-`tests/test_windows.py` runs it against a real process in CI's Windows job. Still untested on
-Windows: the player app (tray, autostart), the installer, and Steam builds. To verify a setup:
+`tests/test_windows.py` runs it against a real process in CI's Windows job. The player app and
+installer are tested on Windows 10 too; Steam builds aren't yet. To verify a setup:
 
 1. `odradek-sync recon list --active` while the game runs. Do Odradek animations appear?
 2. `odradek-sync run --lighting none`, then fold and unfold the Odradek with a scan. Do the
@@ -258,7 +258,7 @@ entry point. It differs from the developer CLI in these ways:
 - **Tray** (`app/tray/`): the menu is one data model (`menu_items`) shared by the backends.
   - Linux: `sni.py` speaks StatusNotifierItem + dbusmenu over D-Bus with jeepney, so there's no
     GTK/Qt dependency.
-  - Windows: `win.py` uses pystray, and is untested on Windows.
+  - Windows: `win.py` uses pystray (tested on Windows 10).
   - Clicks become action names on a queue, handled on the main thread. No tray = `NullTray`.
   - To inspect the Linux tray: `busctl --user call org.kde.StatusNotifierItem-<pid>-1 /MenuBar
     com.canonical.dbusmenu GetLayout iias -- 0 -1 0`.

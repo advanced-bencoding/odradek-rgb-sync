@@ -8,6 +8,12 @@ changes and anything users must do under **Changed** with a ⚠️.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-03
+
+First full release, no longer a pre-release. Tested on Windows 10 with Death Stranding standard
+edition 1.0.8 (the installer, the tray app, start at login, uninstalling) and on Linux with the
+Director's Cut under Proton.
+
 ### Added
 - Support for the standard edition of Death Stranding (version 1.0.8, Epic Games Store) as well as
   the Director's Cut. Odradek Sync works out which one you're running by itself.
