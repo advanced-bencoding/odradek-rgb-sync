@@ -3,6 +3,7 @@
 $ErrorActionPreference = "Stop"
 Set-Location (Split-Path $PSScriptRoot -Parent)
 $version = python -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])"
+$fileVersion = ($version -replace '^(\d+\.\d+\.\d+).*$', '$1') + ".0"   # Windows wants 4 numbers: 0.2.0b1 -> 0.2.0.0
 
 python -m pip install --quiet -e ".[openrgb,tray]" pyinstaller
 python packaging/make_icons.py build/icons
@@ -11,5 +12,5 @@ python -m PyInstaller --noconfirm --clean --distpath build/dist --workpath build
 $iscc = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "${env:ProgramFiles}\Inno Setup 6\ISCC.exe") |
         Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $iscc) { throw "Inno Setup 6 not found (choco install innosetup)" }
-& $iscc "/DAppVersion=$version" packaging\windows\odradek-sync.iss
+& $iscc "/DAppVersion=$version" "/DAppFileVersion=$fileVersion" packaging\windows\odradek-sync.iss
 Write-Host "built dist\OdradekSync-$version-setup.exe"

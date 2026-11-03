@@ -4,11 +4,20 @@
 #ifndef AppVersion
   #define AppVersion "0.0.0"
 #endif
+#ifndef AppFileVersion
+  #define AppFileVersion "0.0.0.0"
+#endif
 
 [Setup]
 AppId={{6E0B8C4A-3F2D-4B7E-9A51-0D8F2C7B1E93}
 AppName={#AppName}
 AppVersion={#AppVersion}
+; Settings > Apps lists the plain name; the version is its own field there (DisplayVersion, from AppVersion)
+UninstallDisplayName={#AppName}
+VersionInfoVersion={#AppFileVersion}
+VersionInfoProductName={#AppName}
+VersionInfoProductTextVersion={#AppVersion}
+VersionInfoDescription={#AppName} setup
 AppPublisher=odradek-sync contributors
 DefaultDirName={autopf}\Odradek Sync
 DefaultGroupName=Odradek Sync

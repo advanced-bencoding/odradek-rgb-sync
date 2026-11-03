@@ -40,6 +40,10 @@ Director's Cut under Proton.
   new choice fails, Odradek Sync goes back to the previous one. The choice is saved as `lighting`
   in the settings file.
 
+### Changed
+- Windows: Settings > Apps lists the app as "Odradek Sync", with its version in the version field
+  instead of the name. The program and the installer carry their version in Properties > Details.
+
 ### Fixed
 - Windows: finding the Odradek after the game starts, or after an area loads, took about a minute
   and a half; it now takes about 15 seconds. The developer tools now work on Windows (tested on
