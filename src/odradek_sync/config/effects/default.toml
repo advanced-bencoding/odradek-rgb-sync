@@ -24,6 +24,16 @@ blend = "replace"
   effect = "dying_flicker"
   params = { color = "#c80a00" }
 
+  [[layer.rule]]                # a BT has detected Sam: the Odradek freezes, pointing at it
+  when = ["tar", "bt_detected"]
+  effect = "solid"
+  params = { color = "#ff5a00" }
+
+  [[layer.rule]]                # caught in the tar: an orange wing tracking the creatures, the rest blue
+  when = ["tar"]
+  effect = "radar_sweep"
+  params = { color = "#ff5a00", background = "#146eff", floor = 0.4, rpm = 20, tail = 1.2 }
+
   [[layer.rule]]
   when = ["orange"]
   effect = "radar_sweep"
@@ -133,6 +143,11 @@ signals = { blue = true, blue_pulse = "rapid", bb_scared = true }
 [[demo]]
 label = "Orange: BT very close, BB crying"
 signals = { orange = true, bb_crying = true }
+
+[[demo]]
+label = "Caught: a BT detects Sam, then the tar (orange wing over blue)"
+signals = { tar = true, bb_crying = true }
+blink = [{ signal = "bt_detected", period = 8.0, width = 2.2 }]
 
 [[demo]]
 label = "Autotoxemia"

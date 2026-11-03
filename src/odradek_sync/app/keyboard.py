@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 
 from ..config import ConfigError
 from ..lighting import (BACKEND_LABELS, BackendMissingError, DeviceError, FirmwareModeDevice, NoDeviceError,
-                        create_repository)
+                        create_repository, device_config)
 from ..lighting.compositor import Compositor, EffectMap
 from ..lighting.geometry import LayoutFactory
 from ..outputs import Output
@@ -82,6 +82,7 @@ class ResilientKeyboard(Output):
             raise NoDeviceError("no keyboard")
         info = keyboards[0]
         device = repo.open(info.id if not self.selector else info.name)
+        device.configure(device_config(device.info.name, self.overrides))
         return device, info, LayoutFactory().build(device.info, self.overrides)
 
     def _connect(self, now: float) -> None:
@@ -132,6 +133,8 @@ class ResilientKeyboard(Output):
             if self.device is None:
                 return
         try:
+            if signals.get("no_game") and not signals.get("paused") and self.device.release():
+                return                          # no game: the keyboard's own lighting (and its controls) back
             self.device.render(self.compositor, now, signals)
         except Exception as e:
             if self.previous is not None:
@@ -151,10 +154,11 @@ class ResilientKeyboard(Output):
             self.compositor = Compositor(effect_map, self.compositor.geometry)
 
     def _let_go(self) -> None:
-        """Leave the current keyboard the way quitting does (idle look, or the owner's own lighting)."""
+        """Leave the current keyboard the way quitting does: its own lighting, or else the idle look."""
         if self.device is not None and self.compositor is not None:
             try:
-                self.device.render(self.compositor, time.time(), SignalPipeline.idle())
+                if not self.device.release():
+                    self.device.render(self.compositor, time.time(), SignalPipeline.idle())
                 self.device.close()
             except Exception:
                 pass

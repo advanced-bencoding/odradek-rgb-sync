@@ -1,6 +1,7 @@
 """Attaching to the running game and keeping the animation catalog valid over time."""
 from __future__ import annotations
 
+import struct
 import time
 from collections.abc import Callable
 from enum import Enum
@@ -38,15 +39,27 @@ class GameSession:
         self.objects: list[AnimationObject] = []
         self.reader: StateReader | None = None
         self.pid: int | None = None
+        self.speed_addr: int | None = None   # the game's speed (0 = paused), if this build's is known
+        self._closed: int | None = None      # a game process that has closed; it can linger in the process list
         self._checked = 0.0
 
     @property
     def attached(self) -> bool:
         return self.reader is not None
 
+    @property
+    def paused(self) -> bool:
+        """The game says it is paused: its speed is 0 (the pause menu, or its window in the background).
+        Always False for a build whose speed address isn't in the profile."""
+        if self.speed_addr is None or self.memory is None:
+            return False
+        b = self.memory.read(self.speed_addr, 4)
+        return b is not None and struct.unpack("<f", b)[0] == 0.0
+
     def try_attach(self) -> Attach:
         info = self.platform.find_process(self.profile.executables)
-        if info is None:
+        if info is None or info.pid == self._closed:   # an exiting game stays listed, still readable, for a moment
+            self._closed = self._closed if info is not None else None
             return Attach.NO_PROCESS
         if self.memory is None or self.memory.pid != info.pid:
             self.detach()
@@ -64,6 +77,7 @@ class GameSession:
             except CatalogError:
                 # the process exists but its exe isn't mapped (yet, or any more): starting or exiting
                 if not self.memory.is_alive():
+                    self._closed = info.pid
                     self.detach()
                     return Attach.NO_PROCESS
                 return Attach.NOT_LOADED
@@ -78,7 +92,12 @@ class GameSession:
         self.objects, self.pid = objects, info.pid
         self.reader = StateReader(self.memory, self.profile, objects)
         self._checked = time.time()
-        self.log(f"attached to pid {info.pid}: {len(objects)} animation objects")
+        speed_rva = self.profile.game_speed.get(self.catalog.rva)
+        span = self.memory.module_range(self.profile.module) if speed_rva is not None else None
+        self.speed_addr = span[0] + speed_rva if span else None
+        build = f" (vtable RVA {self.catalog.rva:#x})" if self.catalog.rva is not None else ""
+        pause = "; pause detection on" if self.speed_addr is not None else ""
+        self.log(f"attached to pid {info.pid}: {len(objects)} animation objects{build}{pause}")
         return Attach.ATTACHED
 
     def read(self) -> dict[str, int] | None:
@@ -91,6 +110,7 @@ class GameSession:
             self._checked = now
             if not self.memory.is_alive():
                 self.log("game closed")
+                self._closed = self.pid
                 self.detach()
                 return None
             if not self.catalog.still_valid(self.objects):
@@ -102,5 +122,5 @@ class GameSession:
     def detach(self) -> None:
         if self.memory is not None:
             self.memory.close()
-        self.memory = self.catalog = self.reader = None
+        self.memory = self.catalog = self.reader = self.speed_addr = None
         self.objects, self.pid = [], None

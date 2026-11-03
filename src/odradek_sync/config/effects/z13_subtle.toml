@@ -24,6 +24,11 @@ blend = "replace"
   params = { mode = "breathe", color = "#280200", color2 = "#0a0000", speed = "slow" }
 
   [[layer.rule]]
+  when = ["tar"]
+  effect = "aura"
+  params = { mode = "breathe", color = "#732800", color2 = "#093172", speed = "slow" }
+
+  [[layer.rule]]
   when = ["orange"]
   effect = "aura"
   params = { mode = "breathe", color = "#732800", color2 = "#140700", speed = "normal" }
@@ -75,6 +80,11 @@ signals = { blue = true, blue_pulse = "rapid" }
 [[demo]]
 label = "Orange: BT very close"
 signals = { orange = true }
+
+[[demo]]
+label = "Caught: a BT detects Sam, then the tar (orange wing over blue)"
+signals = { tar = true }
+blink = [{ signal = "bt_detected", period = 8.0, width = 2.2 }]
 
 [[demo]]
 label = "Autotoxemia"

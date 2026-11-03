@@ -3,6 +3,10 @@
 Example: the blue warning light. Rapid pulsing holds its animation on; slower pulsing switches it
 on for ~0.27 s at intervals that grow as BTs get further away. `pulse_rate` turns that blinking
 raw signal into a steady "blue" plus a "blue_pulse" level (rapid / fast / slow).
+
+Another: being caught in the tar plays no animation of its own, but it starts with one (the Odradek's
+"surprise" when a BT detects Sam) and ends with another (the warning light coming back). `latch` holds
+a signal on between the two.
 """
 from __future__ import annotations
 
@@ -97,3 +101,36 @@ class PulseRate(Deriver):
             median = sorted(self.periods)[len(self.periods) // 2]
             active, level = True, "slow" if median >= self.slow_threshold else "fast"
         signals[self.active], signals[self.level] = active, level
+
+
+@register_deriver("latch")
+class Latch(Deriver):
+    """A state that starts with one signal and lasts until another.
+
+    Config keys: active (the output), set (list), clear (list), unless (list), max_seconds.
+    On while any `set` signal is on (ignored while any `unless` signal is on); after that, until any `clear`
+    signal is on, or `max_seconds` have passed since the last `set`, so a missed clear (a cutscene, a reload)
+    can't leave it on for good.
+    """
+
+    def __init__(self, spec: dict):
+        super().__init__(spec)
+        try:
+            self.active, self.set = spec["active"], list(spec["set"])
+        except KeyError as e:
+            raise ConfigError(f"latch needs {e}") from e
+        self.clear = list(spec.get("clear", []))
+        self.unless = list(spec.get("unless", []))
+        self.max_seconds = float(spec.get("max_seconds", 60.0))
+        self.since: float | None = None   # when a `set` signal was last on
+
+    @property
+    def outputs(self) -> list[str]:
+        return [self.active]
+
+    def update(self, now: float, signals: dict) -> None:
+        if any(signals.get(s) for s in self.set) and not any(signals.get(u) for u in self.unless):
+            self.since = now
+        elif self.since is not None and (any(signals.get(c) for c in self.clear) or now - self.since > self.max_seconds):
+            self.since = None
+        signals[self.active] = self.since is not None

@@ -1,6 +1,7 @@
 """Lighting: device repositories, layout strategies, effects and the compositor."""
 from .device import (BackendMissingError, DeviceError, DeviceInfo, DeviceRepository, FirmwareMode, FirmwareModeDevice,
-                     LedInfo, LightingDevice, NoDeviceError, create_repository, register_repository, repository_names)
+                     LedInfo, LightingDevice, NoDeviceError, create_repository, device_config, register_repository,
+                     repository_names)
 
 
 def _openrgb(**kw):
@@ -55,5 +56,6 @@ def default_effects(backend: str, subtle: bool = False) -> str:
 
 __all__ = ["BACKEND_LABELS", "BackendMissingError", "NoDeviceError", "DeviceError", "DeviceInfo", "DeviceRepository", "FirmwareMode",
            "FirmwareModeDevice", "LedInfo", "LightingDevice", "backend_status", "create_repository", "default_effects",
+           "device_config",
            "detect_backend",
            "register_repository", "repository_names"]

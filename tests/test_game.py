@@ -1,8 +1,9 @@
+import dataclasses
 import tempfile
 import unittest
 from pathlib import Path
 
-from fakes import PROFILE, FakeMemory, VTABLE_RVA
+from fakes import HEAP, MODULE_BASE, PROFILE, FakeMemory, VTABLE_RVA
 
 from odradek_sync.game import AnimationCatalog, CatalogCache, StateReader
 
@@ -51,6 +52,41 @@ class CatalogTest(unittest.TestCase):
             self.assertIsNone(c.load(2, "test", "/odra/"))
 
 
+class MultiBuildTest(unittest.TestCase):
+    """One profile for several builds that differ only in the vtable (standard edition vs Director's Cut)."""
+    OTHER_BUILD_RVA = 0x38703C0
+    PROFILE = dataclasses.replace(PROFILE, layout=dataclasses.replace(
+        PROFILE.layout, vtable_rvas=(VTABLE_RVA, OTHER_BUILD_RVA)))
+
+    def world(self):
+        m = FakeMemory()
+        m.add_object("ds/animations/game/odra/odra/an_odra_arm_search", 2, 1, self.OTHER_BUILD_RVA)
+        m.add_object("ds/animations/game/odra/odra/an_odra_main_sleep_lp", 4, 2, self.OTHER_BUILD_RVA)
+        # in this build the first build's vtable address is unrelated data: a hit on it has no animation name
+        m.write(HEAP + 3 * 0xA0, (MODULE_BASE + VTABLE_RVA).to_bytes(8, "little"))
+        return m
+
+    def test_finds_the_running_builds_objects_and_keeps_its_vtable(self):
+        m = self.world()
+        cat = AnimationCatalog(m, self.PROFILE)
+        objs = cat.scan()
+        self.assertEqual(sorted(o.name for o in objs), ["odra_arm_search", "odra_main_sleep_lp"])
+        self.assertEqual(cat.rva, self.OTHER_BUILD_RVA)
+        self.assertEqual(list(cat.vtables().values()), [self.OTHER_BUILD_RVA])
+        self.assertEqual(len(cat.scan()), 2)
+        self.assertTrue(cat.still_valid(objs))
+
+    def test_objects_from_the_cache_validate_against_every_build(self):
+        m = self.world()
+        objs = AnimationCatalog(m, self.PROFILE).scan()
+        fresh = AnimationCatalog(m, self.PROFILE)      # a restarted tool: build not known yet
+        self.assertTrue(fresh.still_valid(objs))
+        self.assertEqual(fresh.rva, self.OTHER_BUILD_RVA)   # ...until the cached objects are checked
+        for o in objs:
+            m.write(o.address, b"\0" * 8)
+        self.assertFalse(fresh.still_valid(objs))
+
+
 class SessionTest(unittest.TestCase):
     def test_game_exiting_mid_read_detaches_instead_of_crashing(self):
         from odradek_sync.game import Attach, GameSession
@@ -76,6 +112,60 @@ class SessionTest(unittest.TestCase):
             self.assertEqual(s.try_attach(), Attach.NOT_LOADED)
             m.alive = False
             self.assertEqual(s.try_attach(), Attach.NO_PROCESS)
+
+    def test_a_closed_game_still_in_the_process_list_is_not_attached_again(self):
+        from odradek_sync.game import Attach, GameSession
+        from odradek_sync.game import session as session_mod
+        from odradek_sync.platform import ProcessInfo
+
+        m, listed = world(), [True]
+
+        class Plat:
+            def find_process(self, exes):
+                return ProcessInfo(m.pid, "Game.exe") if listed[0] else None
+
+            def open_process(self, pid):
+                return m
+
+        with tempfile.TemporaryDirectory() as d:
+            s = GameSession(Plat(), PROFILE, {"odra_arm_search"}, Path(d))
+            self.assertEqual(s.try_attach(), Attach.ATTACHED)
+            m.alive = False                              # quit: gone, but still listed and readable for a moment
+            s._checked -= session_mod.REVALIDATE_EVERY + 1
+            self.assertIsNone(s.read())
+            m.alive = True                               # a fresh handle can still look alive while it winds down
+            self.assertEqual(s.try_attach(), Attach.NO_PROCESS)
+            listed[0] = False
+            self.assertEqual(s.try_attach(), Attach.NO_PROCESS)
+            listed[0], m.pid = True, 5150                # the game started again: a new process
+            self.assertEqual(s.try_attach(), Attach.ATTACHED)
+
+    def test_paused_reads_the_builds_game_speed(self):
+        import struct
+
+        from odradek_sync.game import Attach, GameSession
+        from odradek_sync.platform import ProcessInfo
+
+        m = world()
+        speed = MODULE_BASE + 0x44E2424
+        m.mem[speed] = bytearray(struct.pack("<f", 1.0))
+
+        class Plat:
+            def find_process(self, exes):
+                return ProcessInfo(m.pid, "Game.exe")
+
+            def open_process(self, pid):
+                return m
+
+        with tempfile.TemporaryDirectory() as d:
+            for game_speed, detects in (({VTABLE_RVA: 0x44E2424}, True), ({0x123: 0x44E2424}, False)):
+                s = GameSession(Plat(), dataclasses.replace(PROFILE, game_speed=game_speed), {"odra_arm_search"}, Path(d))
+                self.assertEqual(s.try_attach(), Attach.ATTACHED)
+                self.assertFalse(s.paused)
+                m.write(speed, struct.pack("<f", 0.0))       # pause menu, or the window in the background
+                self.assertEqual(s.paused, detects)          # another build's address is never used
+                m.write(speed, struct.pack("<f", 1.0))
+                s.detach()
 
 
 class DiscoverTest(unittest.TestCase):

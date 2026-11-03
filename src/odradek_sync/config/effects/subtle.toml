@@ -30,6 +30,11 @@ blend = "replace"
   params = { color = "#c80a00", period = 6.0, min = 0.08, max = 0.25 }
 
   [[layer.rule]]
+  when = ["tar"]
+  effect = "radar_sweep"        # caught in the tar: a slow orange wing over steady blue
+  params = { color = "#ff5a00", background = "#146eff", floor = 0.3, rpm = 8, tail = 3.0 }
+
+  [[layer.rule]]
   when = ["orange"]
   effect = "radar_sweep"        # slow, wide, soft sweep
   params = { color = "#ff5a00", rpm = 12, tail = 4.0, floor = 0.15 }
@@ -130,6 +135,11 @@ signals = { blue = true, blue_pulse = "rapid", bb_scared = true }
 [[demo]]
 label = "Orange: BT very close, BB crying"
 signals = { orange = true, bb_crying = true }
+
+[[demo]]
+label = "Caught: a BT detects Sam, then the tar (orange wing over blue)"
+signals = { tar = true, bb_crying = true }
+blink = [{ signal = "bt_detected", period = 8.0, width = 2.2 }]
 
 [[demo]]
 label = "Autotoxemia"

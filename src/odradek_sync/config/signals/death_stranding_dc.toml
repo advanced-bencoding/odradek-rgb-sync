@@ -36,6 +36,12 @@ confidence = "confirmed"
 description = "Orange: a BT is very close, Odradek spinning"
 evidence = "Matched every orange the player reported (5+ episodes). Spin speed (rapid vs slow) changes no animation."
 
+[signals.bt_detected]
+animations = ["odra_main_surprise", "odra_arm_surprise"]
+confidence = "likely"
+description = "A BT has detected Sam: orange stops and the Odradek freezes, pointing at the BT (2.2 s). The tar follows"
+evidence = "3/3 captures (standard edition 1.0.8, Windows, first BT area; 2 recorded, 1 live): starts in the same frame orange ends, ~3-4 s before the BT cords vanish into the tar. Player: 'right when the BT detects us, the Odradek goes static, pointing towards the BT'. Also played once during rapid blue with no orange before and no tar after, so `tar` ignores it while blue is on."
+
 [signals.spinning]
 animations = ["odra_main_gzm_on_spin"]
 confidence = "weak"
@@ -68,9 +74,12 @@ confidence = "likely"
 description = "BB starting to get scared (~2.7 s before the pop-up, and between orange episodes)"
 
 [signals.bb_crying]
-animations = ["bbyface_r_def_q_crying_small_loop_lp"]
+animations = ["bbyface_r_def_q_crying_small_loop_lp", "bbyface_r_def_q_crying_start_lp", "bbyface_r_def_q_crying_loop_lp",
+              "bbyface_r_def_q_crying_end_lp", "bbydef_q_crying_st", "bbydef_q_crying_lp", "bbydef_q_crying_lp2",
+              "bbydef_q_crying_ed"]
 confidence = "likely"
-description = "BB crying, during orange"
+description = "BB crying, during orange and in the tar"
+evidence = "small_loop throughout orange. The crying_start/loop/end bursts came between small loops only while caught in the tar (2/2 recordings), so the signal stays on through it."
 
 [signals.bb_searching]
 animations = ["bbydef_q_search_st", "bbydef_q_search_lp", "bbydef_q_search_ed"]
@@ -88,8 +97,20 @@ hold = 4.5
 steady = 1.0
 slow_threshold = 2.5
 
+# Caught in the tar. No animation shows it (the Odradek only points; in-game one wing is orange, the others
+# blue, tracking the creatures in the tar), so it is held from the BT detecting Sam until a warning light is back.
+# Evidence: 2/2 recordings (standard edition 1.0.8, Windows), narrated by the player: detected -> tar ~3-4 s later
+# (BT cords vanish) -> 22-28 s in the tar -> escaped to rapid blue. Probably also what was seen on the Director's
+# Cut as "static orange while BTs follow your footprints" (both warning lights stop after orange).
+[[derived]]
+kind = "latch"
+active = "tar"
+set = ["bt_detected"]
+unless = ["blue"]          # a real capture comes straight out of orange (which cancels blue); see bt_detected
+clear = ["blue_flash", "orange", "folded"]
+max_seconds = 60           # a missed exit (a cutscene, dragged to a big BT) can't leave it on
+
 # Known states nobody has mapped yet. Use recon mode to find them.
 [unmapped]
-bt_following = "BTs following your footprints after an orange episode: both warning animations stop; in-game the Odradek shows static orange. Its animation is unknown."
 red = "Red (BT grabbing / combat): never captured."
 orange_spin_speed = "Rapid vs slow orange spin: not an animation state; probably a playback-speed float or BT distance."

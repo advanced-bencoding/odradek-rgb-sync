@@ -48,16 +48,45 @@ def openrgb_available(host: str = "127.0.0.1", port: int = 6742) -> bool:
 
 
 class OpenRGBDevice(LightingDevice):
+    """Takes the device (Direct mode, per-LED colours) on the first frame, and gives it back on release().
+
+    Giving back means switching to a mode that runs the device's own lighting: the device file's
+    `[openrgb] release_mode` (the AULA F75 needs "Off": it locks out its own styles and its knob in Direct,
+    and OpenRGB puts it in Direct whenever it detects it), else the mode the device was in when opened.
+    If that was Direct as well there's nothing to give back to.
+    """
+
     def __init__(self, raw, info: DeviceInfo):
         from openrgb.utils import RGBColor
         self._raw, self.info, self._RGBColor = raw, info, RGBColor
-        direct = next((m for m in raw.modes if m.name.lower() == "direct"), None)
-        if direct is None:
+        self._modes = {m.name.lower(): m for m in raw.modes}
+        if "direct" not in self._modes:
             raise DeviceError(f"{info.name} has no Direct mode, so per-LED control isn't possible")
-        raw.set_mode(direct)
+        self._mode = raw.modes[raw.active_mode].name.lower()     # as far as we know
+        self._release = self._mode if self._mode != "direct" else None
+
+    def configure(self, device_config: dict) -> None:
+        mode = device_config.get("openrgb", {}).get("release_mode")
+        if mode is not None:
+            if mode.lower() not in self._modes:
+                raise DeviceError(f"{self.info.name}: release_mode {mode!r} isn't one of its modes "
+                                  f"({', '.join(m.name for m in self._raw.modes)})")
+            self._release = mode.lower()
+
+    def _set_mode(self, name: str) -> None:
+        if self._mode != name:
+            self._raw.set_mode(self._modes[name])
+            self._mode = name
 
     def show(self, colors: Sequence[RGB]) -> None:
+        self._set_mode("direct")
         self._raw.set_colors([self._RGBColor(*c) for c in colors], fast=True)
+
+    def release(self) -> bool:
+        if self._release is None:
+            return False
+        self._set_mode(self._release)
+        return True
 
 
 class OpenRGBRepository(DeviceRepository):

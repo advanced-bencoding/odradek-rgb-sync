@@ -78,9 +78,9 @@ def check_format(kind: str, data: dict, source: Path | str) -> None:
 @dataclass(frozen=True)
 class ObjectLayout:
     """Where things are inside one animation resource object (offsets from the object start)."""
-    vtable_rva: int       # vtable address minus the executable's load address
-    state_offset: int     # u32 play state: 2 idle, 3 playing, 4 held (e.g. folded)
-    name_offset: int      # pointer to the resource path string
+    vtable_rvas: tuple[int, ...]  # vtable address minus the executable's load address, one per known build
+    state_offset: int             # u32 play state: 2 idle, 3 playing, 4 held (e.g. folded)
+    name_offset: int              # pointer to the resource path string
 
 
 @dataclass(frozen=True)
@@ -93,17 +93,24 @@ class GameProfile:
     name_filter: str
     strip_prefix: str = "an_"
     verified_builds: tuple[str, ...] = field(default_factory=tuple)
+    # build (its vtable RVA) -> RVA of the game's speed, an f32 that is 0 while the game is paused
+    game_speed: dict[int, int] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, d: dict) -> "GameProfile":
         try:
             g, a = d["game"], d["animation_objects"]
+            rvas = a["vtable_rva"]                    # one build's RVA, or a list with one per build
+            rvas = tuple(rvas) if isinstance(rvas, list) else (rvas,)
+            if not rvas or not all(isinstance(r, int) for r in rvas):
+                raise ConfigError("game profile: `vtable_rva` must be an integer or a list of integers")
             return cls(
                 id=g["id"], name=g["name"], executables=tuple(g["executables"]),
                 module=g.get("module", g["executables"][0]),
-                layout=ObjectLayout(a["vtable_rva"], a["state_offset"], a["name_offset"]),
+                layout=ObjectLayout(rvas, a["state_offset"], a["name_offset"]),
                 name_filter=a["name_filter"], strip_prefix=a.get("strip_prefix", "an_"),
                 verified_builds=tuple(g.get("verified_builds", [])),
+                game_speed={s["build"]: s["rva"] for s in d.get("game_speed", [])},
             )
         except KeyError as e:
             raise ConfigError(f"game profile is missing {e}") from e

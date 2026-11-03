@@ -1,7 +1,8 @@
 import unittest
 
+from odradek_sync.config import ConfigLoader
 from odradek_sync.signals import SignalMap, SignalPipeline
-from odradek_sync.signals.derivers import PulseRate
+from odradek_sync.signals.derivers import Latch, PulseRate
 
 SPEC = {"kind": "pulse_rate", "source": "flash", "active": "blue", "level": "pulse", "cancel": ["orange"]}
 
@@ -38,6 +39,64 @@ class PulseRateTest(unittest.TestCase):
     def test_orange_cancels(self):
         res = run_pattern(lambda t: True, extra=lambda t: {"orange": t > 10})
         self.assertEqual(res[-1][1:], (False, None))
+
+
+class LatchTest(unittest.TestCase):
+    SPEC = {"kind": "latch", "active": "tar", "set": ["detected"], "clear": ["blue", "orange"], "max_seconds": 60}
+
+    def run_steps(self, steps):
+        d, out = Latch(self.SPEC), []
+        for t, s in steps:
+            d.update(t, s)
+            out.append(s["tar"])
+        return out
+
+    def test_holds_from_set_until_clear(self):
+        self.assertEqual(self.run_steps([
+            (0, {"orange": True}),
+            (1, {"detected": True}),      # orange ends in the frame the BT detects Sam
+            (3, {}),                      # the detection is over; still in the tar
+            (20, {}),
+            (25, {"blue": True}),         # escaped
+            (26, {}),
+        ]), [False, True, True, True, False, False])
+
+    def test_set_wins_over_clear_in_the_same_frame(self):
+        self.assertEqual(self.run_steps([(0, {"detected": True, "orange": True}), (1, {})]), [True, True])
+
+    def test_gives_up_after_max_seconds(self):
+        self.assertEqual(self.run_steps([(0, {"detected": True}), (59, {}), (61, {})]), [True, True, False])
+
+    def test_unless_ignores_set(self):
+        d = Latch({**self.SPEC, "unless": ["blue"], "clear": []})
+        s = {"detected": True, "blue": True}
+        d.update(0, s)
+        self.assertFalse(s["tar"])
+
+
+class ShippedSignalMapTest(unittest.TestCase):
+    def test_caught_in_the_tar_like_the_recordings(self):
+        """orange -> a BT detects Sam (surprise) -> in the tar, only pointing -> escaped to blue (2 recordings)."""
+        p = SignalPipeline(SignalMap.from_dict(ConfigLoader([]).load("signals", "death_stranding_dc")))
+        steps = [(0.0, ["odra_main_warrning_sign_near_lp"]),
+                 (4.5, ["odra_main_surprise", "odra_arm_surprise"]),
+                 (6.7, ["odra_main_point_lp", "bbydef_q_crying_st"]),
+                 (30.0, ["odra_main_point_lp"]),
+                 (31.0, ["odra_main_warrning_sign_lp"])]
+        got = []
+        for t, playing in steps:
+            s = p.evaluate(t, {a: 3 for a in playing})
+            got.append((s["orange"], s["bt_detected"], s["tar"]))
+        self.assertEqual(got, [(True, False, False), (False, True, True), (False, False, True),
+                               (False, False, True), (False, False, False)])
+
+    def test_surprise_during_blue_is_not_the_tar(self):
+        """Seen once live: the Odradek's surprise during rapid blue, with no orange before and no tar after."""
+        p = SignalPipeline(SignalMap.from_dict(ConfigLoader([]).load("signals", "death_stranding_dc")))
+        p.evaluate(0.0, {"odra_main_warrning_sign_lp": 3})
+        s = p.evaluate(2.0, {"odra_main_warrning_sign_lp": 3, "odra_main_surprise": 3})
+        self.assertTrue(s["blue"] and s["bt_detected"])
+        self.assertFalse(s["tar"])
 
 
 class SignalMapTest(unittest.TestCase):

@@ -14,7 +14,7 @@ class SignalPipeline:
 
     @property
     def signal_names(self) -> set[str]:
-        return set(self.map.signals) | {o for d in self.derivers for o in d.outputs} | {"no_game"}
+        return set(self.map.signals) | {o for d in self.derivers for o in d.outputs} | {"no_game", "paused"}
 
     def evaluate(self, now: float, states: dict[str, int]) -> dict:
         signals: dict = self.map.evaluate(states)
@@ -27,6 +27,11 @@ class SignalPipeline:
     def idle() -> dict:
         """Signals while no game is attached."""
         return {"no_game": True}
+
+    @staticmethod
+    def paused() -> dict:
+        """Signals while the game is paused: the no-game look (a map can still tell them apart by `paused`)."""
+        return {"no_game": True, "paused": True}
 
 
 __all__ = ["Deriver", "SignalDef", "SignalMap", "SignalPipeline", "create_deriver", "register_deriver"]

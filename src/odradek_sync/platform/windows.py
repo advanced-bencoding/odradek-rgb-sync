@@ -1,7 +1,7 @@
 """Windows backend: ReadProcessMemory / VirtualQueryEx / Toolhelp snapshots via ctypes.
 
-Status: written against the Win32 API but not yet run on Windows (development so far happened on
-Linux under Proton). See CONTRIBUTING.md for how to help verify it.
+Status: tested on Windows 10 with Death Stranding 1.0.8 (Epic); tests/test_windows.py runs it against a
+real process in CI's Windows job. See CONTRIBUTING.md for how to help verify other setups.
 """
 from __future__ import annotations
 
@@ -22,6 +22,9 @@ TH32CS_SNAPMODULE = 0x00000008
 TH32CS_SNAPMODULE32 = 0x00000010
 MEM_COMMIT = 0x1000
 PAGE_GUARD = 0x100
+# uncached / write-combined pages are GPU and device mappings: about half of the game's writable memory,
+# slow to read (~120 MiB/s), and never holding game objects
+PAGE_SKIP = PAGE_GUARD | 0x200 | 0x400   # | PAGE_NOCACHE | PAGE_WRITECOMBINE
 READABLE = {0x02, 0x04, 0x08, 0x20, 0x40, 0x80}  # READONLY, READWRITE, WRITECOPY, EXECUTE_*
 WRITABLE = {0x04, 0x08, 0x40, 0x80}
 STILL_ACTIVE = 259
@@ -86,7 +89,7 @@ class WindowsProcessMemory(ProcessMemory):
         while k32.VirtualQueryEx(self._h, ctypes.c_void_p(addr), ctypes.byref(mbi), ctypes.sizeof(mbi)):
             base, size = mbi.BaseAddress or 0, mbi.RegionSize
             prot = mbi.Protect & 0xFF
-            if mbi.State == MEM_COMMIT and not (mbi.Protect & PAGE_GUARD) and prot in READABLE:
+            if mbi.State == MEM_COMMIT and not (mbi.Protect & PAGE_SKIP) and prot in READABLE:
                 if not writable_only or prot in WRITABLE:
                     yield MemoryRegion(base, size, prot in WRITABLE)
             addr = base + size

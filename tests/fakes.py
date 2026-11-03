@@ -12,7 +12,7 @@ OTHER_VTABLE_RVA = 0x3C129D0     # embedded sub-object's vtable, like the real g
 
 PROFILE = GameProfile(
     id="test", name="Test", executables=("Game.exe",), module="Game.exe",
-    layout=ObjectLayout(VTABLE_RVA, 0x18, 0x28), name_filter="/odra/",
+    layout=ObjectLayout((VTABLE_RVA,), 0x18, 0x28), name_filter="/odra/",
 )
 
 
@@ -47,13 +47,13 @@ class FakeMemory(ProcessMemory):
     def is_alive(self):
         return self.alive
 
-    def add_object(self, path: str, state: int, slot: int) -> int:
+    def add_object(self, path: str, state: int, slot: int, vtable_rva: int = VTABLE_RVA) -> int:
         """Place an animation object at HEAP + slot*0xA0 (the real stride)."""
         addr = HEAP + slot * 0xA0
         s = self._str_top
         self.write(s, path.encode() + b"\0")
         self._str_top += len(path) + 1 + 7 & ~7
-        self.write(addr, (MODULE_BASE + VTABLE_RVA).to_bytes(8, "little"))
+        self.write(addr, (MODULE_BASE + vtable_rva).to_bytes(8, "little"))
         self.write(addr + 0x08, bytes(range(16)))                 # GUID
         self.write(addr + 0x18, state.to_bytes(4, "little"))
         self.write(addr + 0x20, (MODULE_BASE + OTHER_VTABLE_RVA).to_bytes(8, "little"))

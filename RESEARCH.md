@@ -165,6 +165,14 @@ an undocumented format. We deliberately didn't probe it: guessing commands on Si
 can change saved settings or drop the board into firmware-update mode. Wireless lighting would
 need the protocol captured from AULA's own software, if that software can do it at all.
 
+Later, on Windows with OpenRGB 1.1.0 installed as a service: while OpenRGB has the AULA F75 in
+Direct mode, the keyboard ignores its own lighting styles and the knob press that cycles them.
+OpenRGB puts it in Direct whenever it detects it, so after every boot and every replug, with no
+client connected; stopping the service freed it. The keyboard's OpenRGB modes are only Off and
+Direct, but **Off hands the lighting back to the keyboard's firmware**: the knob works again, with
+the service still running. So Odradek Sync takes the keyboard (Direct) only while the game runs
+and switches it to Off otherwise; the device file says so (`[openrgb] release_mode`).
+
 ## Step 8: making it portable
 
 The research scripts became this repository. Game knowledge (offsets, animation names, signal
@@ -178,14 +186,96 @@ held a small integer in 92% of 1,343 sampled objects. The embedded sub-object's 
 second with the same count, as expected. So a new game build can be supported without redoing
 steps 1–4.
 
+## Step 9: Windows and the standard edition
+
+The first run on native Windows (Windows 10, *Death Stranding* standard edition 1.0.8 from the
+Epic Games Store, same executable name `DeathStranding.exe`) found two things:
+
+- **Only the vtable moved.** `recon discover` found the animation class at
+  `vtable_rva = 0x38703C0` (Director's Cut: `0x3C12968`), with the same `name_offset = 0x28`,
+  `state_offset = 0x18` (99% small integers) and the embedded sub-object's vtable at `+0x68`,
+  just as in the DC. Every one of the 26 animations the signal map uses exists under the same
+  name, and a folded terrain scan played `wakeup` → `search` → `sleep_lp` as documented in step 5.
+  So one game profile lists both RVAs. The exe has no RTTI, so the build is told apart by which
+  vtable finds named objects. At the DC's RVA, the standard exe has no vtable at all.
+- **Half of the writable memory is the GPU's.** About 3.9 GiB of the game's 7.8 GiB writable
+  memory is write-combined (D3D12 upload heaps and the like). Reading it ran at ~120 MiB/s and
+  took 32 of the scan's 37 s of reads, and it never holds an animation object. Linux already
+  skipped device mappings; Windows now skips `PAGE_WRITECOMBINE` and `PAGE_NOCACHE` pages.
+
+A second, cross-platform speedup came from the search itself. `bytes.find` skips ahead by the
+needle's last byte, and a little-endian user-space pointer ends in `0x00`, the most common byte
+in memory. Searching for the pointer's low 4 bytes and then checking all 8 ran 3.2× faster
+(239 → 758 MiB/s) and found the same objects. Together, the first scan on Windows went from
+87 s to about 15 s.
+
+## Step 10: caught in the tar
+
+Two recordings of every animation (`recon watch --all`) in the first BT area of the standard
+edition, each covering one capture, with the player narrating afterwards: rapid blue, then orange
+spinning; "right when the BT detects us, the Odradek goes static, pointing towards the BT"; when
+the tar forms, "one wing is orange, the others blue, and it tracks the tar creatures"; escape to
+rapid blue. Both recordings line up the same way:
+
+| Moment | Animations |
+| --- | --- |
+| Orange (4.3–4.5 s) | `odra_main_warrning_sign_near_lp` |
+| A BT detects Sam | **`odra_main_surprise` + `odra_arm_surprise`** for 2.2 s, starting in the frame orange stops |
+| The tar forms, 2.7–3.8 s later | `gzmcrd_s_idle_lp` (BT cords) drops from 18–21 to 7; `gzncrd_s_idle_lp` to 2 |
+| In the tar, 22–28 s | **no warning animation**; the Odradek points (`point_lp`, forward and crouch poses); BB's heavy crying bursts (`bbydef_q_crying_st/lp/lp2/ed`, `bbyface_r_def_q_crying_start/loop/end_lp`) |
+| Escape | BB gets scared again, the cords count back up, blue returns |
+
+None of the ~975 loaded animation names mentions tar, dragging or grabbing, so the tar itself has no
+animation in this class. The names did confirm that `gzm` is the gazer (BT): `gzmcrd` is its
+cord, and there are cord-cutting (`hcufdef_samgzm_*_stealth_attack`, `gzmcrd_s_dam_stealth_attack`)
+and bola takedown (`blgrop_gzm_boladown_*`) animations to map later.
+
+So `bt_detected` maps the surprise, and `tar` is a `latch` held from it until a warning light (or
+folding) ends it, with a 60 s limit. Replaying both recordings through the signal map turns `tar` on
+exactly at each detection and off at each escape, and nowhere else. This is very likely what step 6
+noted on the Director's Cut as "static orange while BTs follow your footprints": both warning
+animations stop after orange.
+
+Two side findings: the play-state field isn't a play state for every animation. Ones shared by many
+characters count up instead (BT cords 7–21, other porters' faces 22–26), so for those it's probably
+a reference count. And on Windows, switching away from the game pauses it, which shows up in a
+recording as nothing changing.
+
+## Step 11: telling paused from playing
+
+Pausing freezes every animation state, but so, almost, does standing still: in the BT-zone
+recordings the tracked animations went up to 7.1 s without a change (Sam's face alone 14.8 s), so
+waiting for a freeze would react late and misfire. The game has to say it's paused.
+
+Method: sample the exe's writable sections (56.6 MiB, 185 regions) twice a second as u32 slots,
+storing only changes, together with whether the game window has focus, while the player plays
+and pauses on cue (pause menu twice, then alt-tab). The phases were obvious from memory activity
+alone: 10,000–25,000 slots changed per tick while playing, ~180 while paused. Then look for slots
+that hold one value through every pause and another through play (flags), or change on nearly
+every play tick and never while paused (clocks).
+
+Of 634,278 slots that changed at all, the clearest is a timer block at RVA `0x44E2320` (standard
+edition 1.0.8): a running game clock, a frame step of 0.0167 s at `+0xC`, and at `0x44E2424` an f32
+**speed: 1.0 while playing, 0.0 while paused**. It flipped in the same half-second as the activity
+at all six boundaries, and stayed 0 through the alt-tab: the game uses one pause for the menu and
+for losing focus. A u32 at `0x5108228` (1 while paused) flipped with it, with heap pointers filling
+its neighbours, so it looks like the pause menu's state; the speed was chosen because "the game
+clock is stopped" is the definition of paused.
+
+The profile keeps this per build (`[[game_speed]]`, keyed by the build's vtable RVA), and while
+the speed is 0 the engine shows the no-game look and stops the derived signals' clock, so a pause
+in the tar doesn't use up `tar`'s 60 s limit. The first live run reported `paused` at once.
+
 ## Open questions
 
 | Question | Notes |
 | --- | --- |
-| Static orange while BTs follow you | Both warning animations stop. Find the animation with `recon watch` + markers. |
+| How many BTs are near | `gzmcrd_s_idle_lp` counts BT cords (7 → 21 as BTs appeared, see step 10). A deriver could turn it into a level, but its baseline may differ per area. |
+| The tar's colours | One wing orange, the rest blue, tracking the creatures in the tar: not an animation state. Probably a material parameter. |
+| Pause on the Director's Cut | Its game speed address isn't known; step 11's method finds it. |
+| Dragged to a big BT | `cst_small/middle/big_born` (likely the big BT rising) never played; Sam escaped both times. |
 | Red | Never captured (it needs a BT grab or a fight). |
 | Orange spin speed, blue pulse speed as a number | Rapid vs slow spin changes no animation, so it's probably a playback-rate float or the distance to the nearest BT. That needs the step 1 technique, scanning for a float that rises or falls as BTs get closer. |
-| Windows | The backend is written but untested. Load addresses differ from Proton, but the RVA-based lookup should not care. |
 | Steam build, patches | The vtable RVA may differ; `recon discover` should handle it. |
 | BB's solo autotoxemia | What it means (stress level?) is unknown. |
 
@@ -201,3 +291,8 @@ steps 1–4.
 7. Effects on the AULA F75 through OpenRGB; live keyboard mode.
 8. Corrections from real play: BB-only autotoxemia; "BT following" found to be unmapped.
 9. This repository; `recon discover` re-derives the layout on the live game.
+10. Native Windows and the standard edition 1.0.8: same layout, different vtable RVA; GPU memory
+    skipped; first scan 87 s → ~15 s.
+11. Caught in the tar: the BT detecting Sam (`surprise`) and the tar held until the warning light
+    returns; BT cord counts found.
+12. Pause: the game's speed (0 while paused) found in the exe's data; the keyboard rests while paused.

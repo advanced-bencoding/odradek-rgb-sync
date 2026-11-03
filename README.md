@@ -1,7 +1,7 @@
 # Odradek RGB Sync
 
-Mirror the **Odradek** from *Death Stranding Director's Cut* on your RGB keyboard, live, while
-you play. It shows the blue warning flashes, spinning orange when a BT is close, the terrain-scan
+Mirror the **Odradek** from *Death Stranding* (standard edition or Director's Cut) on your RGB
+keyboard, live, while you play. It shows the blue warning flashes, spinning orange when a BT is close, the terrain-scan
 pulse, autotoxemia, and BB's mood.
 
 There's no screen capture and no game mod. odradek-sync **reads** the game's memory, never
@@ -30,7 +30,9 @@ You don't need Python or a terminal.
      (right-click → Properties → "Allow executing", or `chmod +x`), and double-click it. It adds
      the same entries to your application menu.
 3. **Play.** Odradek Sync runs in the background, starts OpenRGB if needed, waits for Death
-   Stranding, and starts again automatically when you log in.
+   Stranding, and starts again automatically when you log in. It only takes over the keyboard
+   while the game runs: before and after, the keyboard has its own lighting (on the AULA F75,
+   including the knob that changes its style).
 
 **The tray icon** is greyed out while it's waiting, and in full colour once both the game and the
 keyboard are connected. Its menu shows the status and lets you:
@@ -71,8 +73,13 @@ tray's Lighting entries set it). Restart Odradek Sync after editing.
   the log says "permission denied", run `sudo sysctl kernel.yama.ptrace_scope=0` once (it lasts
   until reboot). Fedora and Arch allow it out of the box.
 - **Windows** may warn about an unrecognised app (SmartScreen), because the builds aren't
-  code-signed. The Windows build hasn't been tested on real Windows yet; see Status.
+  code-signed. The Windows player app hasn't been tested on real Windows yet; see Status.
 - **Linux AppImages need FUSE.** On a few distros that means installing `libfuse2`.
+- **OpenRGB takes over some keyboards just by running.** The AULA F75, for one, ignores its own
+  styles and its knob whenever OpenRGB has detected it, even with nothing lighting it, and OpenRGB
+  installed as a service detects it at every boot. Odradek Sync hands such keyboards back (OpenRGB's
+  Off mode) whenever the game isn't running, so leave Odradek Sync running and the knob works
+  outside the game.
 - **To remove it:** Windows: uninstall from Settings → Apps. Linux: run the AppImage with
   `--uninstall`, then delete the file.
 
@@ -81,14 +88,14 @@ tray's Lighting entries set it). Restart Odradek Sync after editing.
 | Area | Status |
 | --- | --- |
 | Linux, game under Proton/Wine | **Works.** Developed and tested on Fedora 44 + GE-Proton (Heroic, Epic build) |
-| Windows, native | Backend and installer written but **not tested on Windows yet**. Help wanted |
-| Player app | Linux AppImage built and tested; Windows installer built by CI (untested) |
+| Windows, native | **Works** from the developer CLI: tested on Windows 10 with the standard edition 1.0.8 (Epic) and an AULA F75 through OpenRGB. Help wanted with other setups |
+| Player app | Linux AppImage built and tested; the Windows installer builds, but the app isn't tested on Windows yet |
 | macOS | Not supported (no memory backend) |
-| Game build | DS:DC Epic Games Store, October 2026. Other builds may need `recon discover` |
+| Game build | Standard edition 1.0.8 and Director's Cut (October 2026), both Epic Games Store; detected automatically. Other builds may need `recon discover` |
 | Lighting | OpenRGB (tested: AULA F75 over USB). Keyboards without explicit support get an automatic fallback layout. A terminal preview for development |
 | ASUS ROG Flow Z13 (2025) | **Linux only**, through z13ctl's daemon, picked automatically. Written and unit-tested, **not tested on a Z13 yet**. Help wanted. Not supported on Windows (z13ctl is Linux-only, and OpenRGB doesn't support the Z13) |
-| Mapped states | scan, waking, folded, blue (rapid/fast/slow), orange, autotoxemia, BB scared/crying/searching |
-| Not mapped yet | static orange while BTs follow you, red, orange spin speed (see `odradek-sync signals`) |
+| Mapped states | scan, waking, folded, blue (rapid/fast/slow), orange, BT detects you, caught in the tar, autotoxemia, BB scared/crying/searching; the game paused (standard edition only so far) |
+| Not mapped yet | red, orange spin speed, how many BTs are near (see `odradek-sync signals`) |
 
 ## Install (developers)
 
@@ -99,6 +106,10 @@ git clone <this repo> odradek-sync && cd odradek-sync
 python -m venv .venv
 .venv/bin/pip install -e ".[openrgb]"        # add ,recon for the research tools (numpy)
 ```
+
+On Windows the venv's programs are in `.venv\Scripts\` (`.venv\Scripts\pip install -e ".[openrgb]"`,
+then `.venv\Scripts\Activate.ps1`). Python from the Microsoft Store stub isn't enough: install it from
+python.org or with `winget install Python.Python.3.12`.
 
 For keyboard lighting, install [OpenRGB](https://openrgb.org). odradek-sync starts
 `openrgb --server` itself if no SDK server is running. Keyboards usually need their **USB cable**
@@ -162,18 +173,22 @@ Which keys count as `top_row` comes from the device: matrix row 0 by default, or
 | In game | Keyboard |
 | --- | --- |
 | Odradek folded | dim amber breathing |
+| Game paused (the pause menu, or another window in front) | very dim amber breathing; the top row too |
+| No game running | the keyboard's own lighting (AULA F75, or a keyboard whose device file sets `release_mode`); otherwise very dim amber breathing |
 | Odradek open, nothing around | steady dim amber |
 | Terrain scan | icy-blue shockwave from the space bar (a gold ring first if it was folded) |
 | Blue, slow / fast | a blue flash each time the in-game light flashes |
 | Blue, rapid | fast blue strobe rippling across |
 | Orange | orange radar sweep spinning around the board |
+| A BT detects you (the Odradek freezes, pointing at it) | steady orange |
+| Caught in the tar (one wing orange, the rest blue), until you escape | an orange wing sweeping over blue |
 | Autotoxemia | dying red flicker, keys going dark |
 
 **BB (top row):**
 
 | BB | Keyboard |
 | --- | --- |
-| crying (during orange) | blue drops over dim orange |
+| crying (during orange and in the tar) | blue drops over dim orange |
 | scared (during blue) | jittery amber |
 | getting scared | dimmer amber jitter |
 | calm, Odradek open | steady teal |
@@ -265,7 +280,7 @@ describes the versioning rules and the release process.
 
 - **Read-only.** odradek-sync opens the game process for reading only and never writes to it.
 - **Single-player focus.** Death Stranding has online features through the Epic Online
-  Services SDK. We know of no anti-cheat in DS:DC, and reading memory is passive, but nobody has
+  Services SDK. We know of no anti-cheat in Death Stranding, and reading memory is passive, but nobody has
   verified this against any publisher policy. Use at your own discretion.
 - **No guessing at hardware.** Lighting only goes through documented protocols (OpenRGB, and
   z13ctl's daemon on a ROG Flow Z13). We don't send experimental packets to vendor HID channels,

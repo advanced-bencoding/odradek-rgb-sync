@@ -1,8 +1,11 @@
+import importlib.util
+import types
 import unittest
 
 from odradek_sync.lighting.compositor import Compositor, Condition, EffectMap, Softener
 from odradek_sync.lighting.console_repository import ConsoleRepository
-from odradek_sync.lighting.device import DeviceInfo, LedInfo
+from odradek_sync.lighting.device import DeviceInfo, LedInfo, LightingDevice
+from odradek_sync.outputs import LightingOutput
 from odradek_sync.lighting.effects import available_effects, create_effect
 from odradek_sync.lighting.effects.base import FrameContext
 from odradek_sync.lighting.geometry import LayoutFactory
@@ -101,6 +104,75 @@ class SoftenerTest(unittest.TestCase):
         self.assertLessEqual(max(max(px) for px in frame), int(255 * 0.45))
 
 
+@unittest.skipUnless(importlib.util.find_spec("openrgb"), "openrgb-python not installed")
+class OpenRGBReleaseTest(unittest.TestCase):
+    class Raw:
+        """An openrgb-python device: its modes, the active one, and what was sent to it."""
+
+        def __init__(self, modes, active):
+            self.modes = [types.SimpleNamespace(name=n) for n in modes]
+            self.active_mode, self.sent = modes.index(active), []
+
+        def set_mode(self, mode):
+            self.sent.append(mode.name)
+
+        def set_colors(self, colors, fast=False):
+            self.sent.append("colors")
+
+    def device(self, modes, active, config=None):
+        from odradek_sync.lighting.openrgb_repository import OpenRGBDevice
+        raw = self.Raw(modes, active)
+        d = OpenRGBDevice(raw, DeviceInfo("0", "AULA F75", "keyboard", ()))
+        d.configure(config or {})
+        return d, raw
+
+    def test_aula_goes_off_without_a_game_and_direct_on_the_next_frame(self):
+        d, raw = self.device(["Off", "Direct"], "Direct", {"openrgb": {"release_mode": "Off"}})
+        self.assertTrue(d.release())
+        self.assertTrue(d.release())                 # already handed back: nothing sent again
+        d.show([(0, 0, 0)])
+        d.show([(0, 0, 0)])
+        self.assertTrue(d.release())
+        self.assertEqual(raw.sent, ["Off", "Direct", "colors", "colors", "Off"])
+
+    def test_without_a_release_mode_it_gives_back_the_mode_it_found(self):
+        d, raw = self.device(["Static", "Wave", "Direct"], "Wave")
+        d.show([(0, 0, 0)])
+        self.assertTrue(d.release())
+        self.assertEqual(raw.sent, ["Direct", "colors", "Wave"])
+        self.assertFalse(self.device(["Static", "Direct"], "Direct")[0].release())   # nothing to give back
+
+    def test_a_release_mode_the_device_lacks_is_an_error(self):
+        from odradek_sync.lighting import DeviceError
+        with self.assertRaises(DeviceError):
+            self.device(["Off", "Direct"], "Direct", {"openrgb": {"release_mode": "Rainbow"}})
+
+
+class OutputReleaseTest(unittest.TestCase):
+    def test_lighting_output_releases_without_a_game(self):
+        class Dev(LightingDevice):
+            def __init__(self, can_release):
+                self.info, self.can, self.log = INFO, can_release, []
+
+            def show(self, colors):
+                self.log.append("frame")
+
+            def release(self):
+                self.log.append("release")
+                return self.can
+
+        g = LayoutFactory().build(INFO)
+        for can, want in ((True, ["release", "frame", "frame", "release"]),
+                          (False, ["release", "frame", "frame", "frame", "release", "frame"])):
+            dev = Dev(can)
+            out = LightingOutput(dev, Compositor(EffectMap.from_dict(MAP), g))
+            out.update(0.0, {"no_game": True}, None)
+            out.update(0.1, {"orange": True}, {})
+            out.update(0.2, {"no_game": True, "paused": True}, {})
+            out.close()
+            self.assertEqual(dev.log, want, f"can release: {can}")
+
+
 class EffectsTest(unittest.TestCase):
     def test_every_builtin_renders_one_colour_per_led(self):
         g = LayoutFactory().build(INFO)
@@ -110,6 +182,14 @@ class EffectsTest(unittest.TestCase):
             for t in (0.0, 0.5, 2.0):
                 ctx = FrameContext(g, t, {}, {"blue_flash": 0.4})
                 self.assertEqual(len(e.frame(ctx)), g.n, name)
+
+    def test_radar_sweep_fades_into_its_background(self):
+        g = LayoutFactory().build(INFO)
+        e = create_effect("radar_sweep", {"color": RED, "background": BLUE, "floor": 0.5, "tail": 0.5})
+        e.start(0.0)
+        frame = e.frame(FrameContext(g, 0.0))
+        self.assertIn((0.0, 0.0, 127.5), frame)            # away from the beam: the background at `floor`
+        self.assertTrue(any(px[0] > 128 for px in frame))   # the beam itself
 
     def test_aura_mirrors_z13_firmware_modes(self):
         from odradek_sync.config import ConfigError

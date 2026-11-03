@@ -1,19 +1,36 @@
 # Game profile: how to find animation objects in this game's memory.
-# A different build (Steam vs Epic, a patch) may move the vtable; `odradek-sync recon discover`
-# finds the new values. Add a new file per build/game rather than editing this one.
+# Covers the standard edition and the Director's Cut: they share the executable name, the object
+# layout and the animation names, and differ only in where the animation vtable sits. A new build
+# (Steam, a patch) usually only needs its vtable RVA added to the list below; `odradek-sync recon
+# discover` finds it. A different game gets a file of its own.
 format = 1                 # config format version (see RELEASING.md)
 
 [game]
 id = "death_stranding_dc"
-name = "Death Stranding Director's Cut"
+name = "Death Stranding (standard edition or Director's Cut)"
 executables = ["DeathStranding.exe"]
 module = "DeathStranding.exe"
-verified_builds = ["Epic Games Store, October 2026, under GE-Proton on Fedora 44"]
+verified_builds = [
+    "Director's Cut: Epic Games Store, October 2026, under GE-Proton on Fedora 44",
+    "Standard edition 1.0.8: Epic Games Store, November 2026, on Windows 10",
+]
 
 [animation_objects]
-vtable_rva = 0x3C12968     # vtable address - DeathStranding.exe load address
+# vtable address - DeathStranding.exe load address, one per known build. The first scan looks for
+# all of them at once and keeps the one the running game uses.
+vtable_rva = [
+    0x3C12968,             # Director's Cut (Epic, October 2026)
+    0x38703C0,             # standard edition 1.0.8 (Epic)
+]
 state_offset = 0x18        # u32 play state: 2 idle, 3 playing, 4 held
 name_offset = 0x28         # char* resource path
 # Which animations to track: the Odradek, BB's body and face, Sam's face.
 name_filter = "/odra/odra/|/bbyface_r/|/bby/bbydef/|/samface_r/"
 strip_prefix = "an_"
+
+# Pause detection, per build: where the game keeps its speed, an f32 in the exe's data (address -
+# DeathStranding.exe load address). 1.0 while playing, 0 while paused: the pause menu, or the window
+# in the background. A build without an entry just isn't detected as paused.
+[[game_speed]]
+build = 0x38703C0          # standard edition 1.0.8 (its vtable_rva)
+rva = 0x44E2424

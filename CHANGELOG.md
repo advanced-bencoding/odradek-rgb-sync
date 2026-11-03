@@ -9,6 +9,21 @@ changes and anything users must do under **Changed** with a ⚠️.
 ## [Unreleased]
 
 ### Added
+- Support for the standard edition of Death Stranding (version 1.0.8, Epic Games Store) as well as
+  the Director's Cut. Odradek Sync works out which one you're running by itself.
+- The keyboard shows when a BT detects you (steady orange, as the Odradek freezes and points at it)
+  and when you're caught in the tar (an orange wing sweeping over blue, like the Odradek's own),
+  until you escape. BB's crying on the top row now lasts through the tar too.
+- Pausing the game (the pause menu, or switching to another window) rests the keyboard in its
+  no-game look until you resume. Standard edition 1.0.8 only for now; the Director's Cut needs its
+  pause address found first.
+- Odradek Sync only takes over the keyboard while the game runs. Before and after (and when you quit
+  it), the keyboard gets its own lighting back: on the AULA F75 that brings back its styles and the
+  knob that switches them, which stop working while OpenRGB has it in Direct mode (OpenRGB does that
+  every time it detects the keyboard). Other keyboards get back the mode they were in, or the
+  no-game look as before.
+- Windows scripts for developers: `scripts\run.cmd` runs the keyboard sync, `scripts\record.cmd`
+  records every animation while you play, for mapping new states.
 - ASUS ROG Flow Z13 (2025) support on Linux through [z13ctl](https://github.com/dahui/z13ctl),
   picked automatically on a Z13 (not on Windows: z13ctl is Linux-only). The keyboard shows each Odradek state with its own built-in effects
   (one colour across the board), and goes back to your own z13ctl lighting when the game isn't
@@ -18,6 +33,12 @@ changes and anything users must do under **Changed** with a ⚠️.
   isn't installed, or finds no hardware, is greyed out with the reason. Switching is live; if the
   new choice fails, Odradek Sync goes back to the previous one. The choice is saved as `lighting`
   in the settings file.
+
+### Fixed
+- Windows: finding the Odradek after the game starts, or after an area loads, took about a minute
+  and a half; it now takes about 15 seconds. The developer tools now work on Windows (tested on
+  Windows 10).
+- The log no longer says "Connected to Death Stranding" for a moment while the game is closing.
 
 ## [0.1.0] - 2026-10-17
 

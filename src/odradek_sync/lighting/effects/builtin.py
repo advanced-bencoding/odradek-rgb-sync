@@ -131,16 +131,18 @@ class StrobeWave(Effect):
 
 @register_effect("radar_sweep")
 class RadarSweep(Effect):
-    """A beam spinning around an anchor with a fading tail. params: color, rpm, tail (rad), floor, origin, y_scale."""
+    """A beam spinning around an anchor with a fading tail. params: color, rpm, tail (rad), floor, background
+    (colour the beam fades into, at `floor` brightness; default: the beam's own colour), origin, y_scale."""
 
     def setup(self):
         self.c, self.rpm = self.color(), float(self.p("rpm", 60.0))
         self.tail, self.floor = float(self.p("tail", 2.2)), float(self.p("floor", 0.08))
+        self.bg = self.color("background") if "background" in self.params else self.c
         self.origin, self.ys = self.p("origin", "center"), float(self.p("y_scale", 1.6))
 
     def render(self, t, ctx):
         o, a0 = ctx.geometry.point(self.origin), t * 2 * math.pi * self.rpm / 60
-        dim = scale(self.c, self.floor)
+        dim = scale(self.bg, self.floor)
 
         def led(i, p):
             lag = (a0 - math.atan2((p[1] - o[1]) * self.ys, p[0] - o[0])) % (2 * math.pi)

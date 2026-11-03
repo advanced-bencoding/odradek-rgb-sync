@@ -9,6 +9,11 @@ Decima keeps every loaded animation resource as an object laid out like this (DS
 
 So: compute the vtable address from the exe's load address, find every 8-aligned occurrence of it
 in writable memory, and read each object's name. The offsets come from the game profile.
+
+Only the vtable moves between game builds (standard edition 1.0.8 and the Director's Cut share the
+layout and the animation names), so the profile lists one vtable RVA per known build. The first scan
+looks for all of them at once; whichever one finds named objects is the running build, and later
+scans look for that one only.
 """
 from __future__ import annotations
 
@@ -42,16 +47,19 @@ class CatalogError(RuntimeError):
 class AnimationCatalog:
     def __init__(self, memory: ProcessMemory, profile: GameProfile):
         self.memory, self.profile = memory, profile
+        self.rva: int | None = None   # the running build's vtable RVA, once a scan has found its objects
 
-    def vtable(self) -> int:
+    def vtables(self) -> dict[int, int]:
+        """{vtable address: RVA} for every known build, or only the running build once it's known."""
         span = self.memory.module_range(self.profile.module)
         if span is None:
             raise CatalogError(f"{self.profile.module} isn't loaded in process {self.memory.pid}")
-        return span[0] + self.profile.layout.vtable_rva
+        rvas = self.profile.layout.vtable_rvas if self.rva is None else (self.rva,)
+        return {span[0] + rva: rva for rva in rvas}
 
-    def find_objects(self, progress: Callable[[int, int], None] | None = None) -> list[int]:
-        """Addresses of every object whose first 8 bytes are the animation vtable."""
-        pattern = self.vtable().to_bytes(8, "little")
+    def find_objects(self, progress: Callable[[int, int], None] | None = None) -> list[tuple[int, int]]:
+        """(address, vtable RVA) of every object whose first 8 bytes are one of the animation vtables."""
+        patterns = [(vt.to_bytes(8, "little"), rva) for vt, rva in self.vtables().items()]
         regions = list(self.memory.regions(writable_only=True))
         total, done, found = sum(r.size for r in regions), 0, []
         for r in regions:
@@ -63,22 +71,28 @@ class AnimationCatalog:
                     progress(done, total)
                 if buf is None:
                     continue
-                i = buf.find(pattern)
-                while i != -1:
-                    if (start + i) % 8 == 0:
-                        found.append(start + i)
-                    i = buf.find(pattern, i + 1)
+                for pattern, rva in patterns:
+                    # look for the pointer's low 4 bytes, then check the rest: bytes.find skips ahead by the
+                    # needle's last byte, and a pointer ends in 0x00, the most common byte (3x faster on the game)
+                    i = buf.find(pattern[:4])
+                    while i != -1:
+                        if (start + i) % 8 == 0 and buf[i:i + 8] == pattern:
+                            found.append((start + i, rva))
+                        i = buf.find(pattern[:4], i + 1)
         return found
 
     def scan(self, name_filter: str | None = None, progress=None) -> list[AnimationObject]:
         """Every animation object whose path matches name_filter (default: the profile's)."""
         rx = re.compile(self.profile.name_filter if name_filter is None else name_filter)
-        out = []
-        for addr in self.find_objects(progress):
+        out, builds = [], set()
+        for addr, rva in self.find_objects(progress):
             ptr = self.memory.read_u64(addr + self.profile.layout.name_offset)
             path = self.memory.read_cstring(ptr) if ptr and 0x10000 < ptr < 1 << 47 else None
             if path and rx.search(path):
                 out.append(AnimationObject(self.profile.short_name(path), path, addr))
+                builds.add(rva)
+        if len(builds) == 1:
+            self.rva = builds.pop()
         return out
 
     def still_valid(self, objects: Iterable[AnimationObject], samples: int = 20) -> bool:
@@ -87,11 +101,16 @@ class AnimationCatalog:
         if not objs:
             return False
         try:
-            want = self.vtable().to_bytes(8, "little")
+            want = {vt.to_bytes(8, "little"): rva for vt, rva in self.vtables().items()}
         except CatalogError:   # exe unmapped: the game is starting up or shutting down
             return False
         step = max(1, len(objs) // samples)
-        return all(self.memory.read(o.address, 8) == want for o in objs[::step])
+        builds = {want.get(self.memory.read(o.address, 8)) for o in objs[::step]}
+        if None in builds:
+            return False
+        if len(builds) == 1:   # objects from the cache never went through scan(): this tells the build
+            self.rva = builds.pop()
+        return True
 
 
 class StateReader:

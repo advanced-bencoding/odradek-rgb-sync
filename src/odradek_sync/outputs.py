@@ -28,15 +28,20 @@ class LightingOutput(Output):
         self.device, self.compositor = device, compositor
 
     def update(self, now, signals, states):
+        if signals.get("no_game") and not signals.get("paused") and self.device.release():
+            return                      # no game: the keyboard's own lighting (and its controls) back
         self.device.render(self.compositor, now, signals)
 
     def close(self):
-        self.device.render(self.compositor, time.time(), SignalPipeline.idle())
+        if not self.device.release():
+            self.device.render(self.compositor, time.time(), SignalPipeline.idle())
         self.device.close()
 
 
 def summarize(signals: dict) -> str:
     """'blue blue_pulse=fast bb_scared' - the truthy signals, compactly."""
+    if signals.get("paused"):
+        return "paused"
     parts = [k if v is True else f"{k}={v}" for k, v in signals.items() if v and k != "no_game"]
     return "no game" if signals.get("no_game") else (" ".join(parts) or "-")
 

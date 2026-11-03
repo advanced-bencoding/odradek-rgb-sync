@@ -22,6 +22,7 @@ class SyncEngine:
 
     def run(self, should_stop: Callable[[], bool] = lambda: False) -> None:
         next_attach, last_status, signals = 0.0, None, SignalPipeline.idle()
+        paused_since, paused_total = None, 0.0   # derived signals run on game time, which stops while paused
         try:
             while not should_stop():
                 now = time.time()
@@ -45,8 +46,13 @@ class SyncEngine:
                         states = self.session.read()
                     now = time.time()
                 if self.session.attached:
-                    if states is not None:
-                        signals = self.pipeline.evaluate(now, states)
+                    if states is not None and self.session.paused:
+                        paused_since = now if paused_since is None else paused_since
+                        signals = SignalPipeline.paused()
+                    elif states is not None:
+                        if paused_since is not None:
+                            paused_total, paused_since = paused_total + now - paused_since, None
+                        signals = self.pipeline.evaluate(now - paused_total, states)
                 else:
                     signals = SignalPipeline.idle()
                 for o in self.outputs:

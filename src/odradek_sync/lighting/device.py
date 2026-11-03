@@ -56,6 +56,14 @@ class LightingDevice(ABC):
         """Show what the compositor has for this moment."""
         self.show(compositor.frame(now, signals))
 
+    def configure(self, device_config: dict) -> None:
+        """Apply this device's config/devices entry (see `device_config`). Default: nothing to apply."""
+
+    def release(self) -> bool:
+        """Give the device back to its own lighting while no game is running; the next frame takes it again.
+        False if there's nothing to give back to: then the caller keeps showing the no-game look."""
+        return False
+
     def close(self) -> None:
         pass
 
@@ -72,6 +80,10 @@ class FirmwareModeDevice(LightingDevice):
 
     def show(self, colors: Sequence[RGB]) -> None:
         raise DeviceError(f"{self.info.name} runs firmware lighting modes and can't show frames")
+
+    def release(self) -> bool:
+        self.apply(None)
+        return True
 
     @abstractmethod
     def apply(self, mode: FirmwareMode | None) -> None:
@@ -142,3 +154,8 @@ def create_repository(name: str, **options) -> DeviceRepository:
 
 def repository_names() -> list[str]:
     return list(_REPOSITORIES)
+
+
+def device_config(name: str, overrides: list[dict] | None) -> dict:
+    """The config/devices entry whose `match` is part of this device's name, or {}."""
+    return next((o for o in overrides or [] if o.get("device", {}).get("match", "\0").lower() in name.lower()), {})

@@ -12,7 +12,7 @@ from . import __version__
 from .config import ConfigError, ConfigLoader
 from .engine import SyncEngine
 from .game import Attach, GameSession
-from .lighting import DeviceError, create_repository, default_effects, detect_backend, repository_names
+from .lighting import DeviceError, create_repository, default_effects, detect_backend, device_config, repository_names
 from .lighting.compositor import Compositor, EffectMap
 from .lighting.effects import available_effects
 from .lighting.geometry import LayoutFactory
@@ -39,6 +39,7 @@ def loader_from(args) -> ConfigLoader:
 def open_lighting(args, loader: ConfigLoader, effect_map: EffectMap):
     repo = create_repository(args.lighting)
     device = repo.open(args.device)
+    device.configure(device_config(device.info.name, loader.devices()))
     geometry = LayoutFactory().build(device.info, loader.devices())
     return device, Compositor(effect_map, geometry)
 
@@ -101,7 +102,11 @@ def cmd_signals(args):
         st = "" if s.state == 3 else f" (state {s.state})"
         print(f"{s.name:18s} {s.confidence:9s} {s.description}{st}\n{'':28s} {', '.join(s.animations)}")
     for d in smap.derived:
-        print(f"{d.get('active', '?'):18s} {'derived':9s} {d['kind']} of {d.get('source')} (also {d.get('level')})")
+        if d["kind"] == "latch":
+            how = f"latch: from {', '.join(d.get('set', []))} until {', '.join(d.get('clear', [])) or 'timeout'}"
+        else:
+            how = f"{d['kind']} of {d.get('source')} (also {d.get('level')})"
+        print(f"{d.get('active', '?'):18s} {'derived':9s} {how}")
     for k, v in smap.unmapped.items():
         print(f"{k:18s} {'UNMAPPED':9s} {v}")
 
@@ -139,7 +144,8 @@ def cmd_effects_demo(args):
             _render_for(device, comp, args.seconds, at)
     except KeyboardInterrupt:
         pass
-    device.render(Compositor(effect_map, geometry), time.time(), SignalPipeline.idle())
+    if not device.release():
+        device.render(Compositor(effect_map, geometry), time.time(), SignalPipeline.idle())
     device.close()
 
 
@@ -226,7 +232,8 @@ def cmd_recon_discover(args):
         print(f"vtable_rva = {c.vtable_rva:#x}   name_offset = {c.name_offset:#x}   objects = {c.objects}\n"
               f"    state offset candidates: {so}\n    e.g. {c.examples[0] if c.examples else ''}")
     p = profile.layout
-    print(f"\ncurrent profile: vtable_rva = {p.vtable_rva:#x}, name_offset = {p.name_offset:#x}, state_offset = {p.state_offset:#x}")
+    rvas = ", ".join(f"{r:#x}" for r in p.vtable_rvas)
+    print(f"\ncurrent profile: vtable_rva = [{rvas}], name_offset = {p.name_offset:#x}, state_offset = {p.state_offset:#x}")
 
 
 # ------------------------------------------------------------------ parser

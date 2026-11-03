@@ -10,6 +10,12 @@ format = 1                 # config format version (see RELEASING.md)
 [device]
 match = "AULA F75"
 
+# The OpenRGB mode that hands the keyboard back to its own lighting when no game is running. In Direct
+# (which OpenRGB sets whenever it detects the keyboard) the AULA F75 ignores its own styles and the knob
+# that cycles them; in Off its own lighting runs again (tested with OpenRGB 1.1.0 running as a service).
+[openrgb]
+release_mode = "Off"
+
 [regions]
 top_row = { rows = [0] }
 arrows = { keys = ["Up Arrow", "Down Arrow", "Left Arrow", "Right Arrow"] }

@@ -129,6 +129,37 @@ class SwitchTest(unittest.TestCase):
         self.assertEqual(self.kb.backend, "openrgb")
 
 
+class ReleaseTest(unittest.TestCase):
+    """The keyboard is only taken while a game runs; otherwise it goes back to its own lighting."""
+
+    def test_no_game_hands_the_keyboard_back_but_a_pause_keeps_the_rest_look(self):
+        events = []
+
+        class Device(NullDevice):
+            def show(self, colors):
+                events.append("frame")
+
+            def release(self):
+                events.append("release")
+                return True
+
+        class OneRepo(Repo):
+            def open(self, selector=None):
+                return Device()
+
+        with tempfile.TemporaryDirectory() as d:
+            log = UserLog(Path(d) / "k.log")
+            kb = ResilientKeyboard(log, EffectMap.from_dict(ConfigLoader([]).load("effects", "default")), [],
+                                   repo=OneRepo("openrgb"))
+            kb.update(0.0, {"no_game": True}, None)                     # app started, no game
+            kb.update(0.1, {"no_game": False, "blue": True}, {})        # game detected
+            kb.update(0.2, {"no_game": True, "paused": True}, {})       # paused: the no-game look
+            kb.update(0.3, {"no_game": True}, None)                     # game quit
+            kb.close()                                                  # app quit
+            log.close()
+        self.assertEqual(events, ["release", "frame", "frame", "release", "release"])
+
+
 class LightingChoiceTest(unittest.TestCase):
     def test_tray_greys_out_backends_that_cant_be_used(self):
         state = TrayState(lighting="openrgb", backends=(("openrgb", "OpenRGB", None),

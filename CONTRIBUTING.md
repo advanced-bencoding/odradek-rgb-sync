@@ -56,25 +56,26 @@ in TOML, not in code.
 
 ## Mapping a new Odradek state
 
-This is how every mapped signal was found. Example: the unmapped "static orange while BTs follow
-you".
+This is how every mapped signal was found. Example: the unmapped red light (a BT grabbing Sam, or
+combat).
 
-1. **Watch while it happens.** Start `odradek-sync recon watch --log follow.jsonl` and play.
-   When the state starts, type a note (`static orange now`) and press Enter. The note shows up
+1. **Watch while it happens.** Start `odradek-sync recon watch --log red.jsonl` and play (on
+   Windows, `scripts\record.cmd red` records every animation into `recordings\`).
+   When the state starts, type a note (`red now`) and press Enter. The note shows up
    as a `MARK` line in the output and in the log.
 2. **Read around the marker.** Animations that start at the marker and stop when the state ends
    are your candidates. Ignore the ones that change all the time.
 3. **Confirm with captures.** Take two or three captures while in the state
-   (`recon capture follow`), and two or three in a neighbouring state
+   (`recon capture red`), and two or three in a neighbouring state
    (`recon capture orange`, `recon capture blue`). Then run `recon compare`. Animations that are
    steady within each label and differ between labels are listed.
 4. **Add it to the signal map** (`config/signals/death_stranding_dc.toml`):
    ```toml
-   [signals.bt_following]
+   [signals.red]
    animations = ["odra_main_..."]
    confidence = "weak"          # raise it as evidence accumulates
-   description = "Static orange while BTs follow your footprints"
-   evidence = "recon watch: on at every 'follow' marker (3/3), off when they lost track"
+   description = "Red: a BT grabbing Sam"
+   evidence = "recon watch: on at every 'red' marker (3/3), off when Sam broke free"
    ```
 5. **Give it an effect** in `config/effects/default.toml`, in the right priority position. Rules
    higher in a layer win. Add a `[[demo]]` scenario so it can be previewed.
@@ -94,7 +95,14 @@ Keep `evidence` honest, because the signal map is the project's knowledge base.
 - **Play state 4** means "held" (e.g. `sleep_lp` while folded). Signals can set `state = 4`.
 - **Some properties aren't animation states.** Orange spin speed is one: rapid vs slow spinning
   changes no animation. Those need a different technique (see RESEARCH.md, open questions).
-- **Pausing** freezes animation states, so recordings show the last state during a pause.
+- **Pausing** freezes animation states, so recordings show the last state during a pause. On
+  Windows, switching to another window pauses the game too.
+- **Some states play no animation of their own.** Caught in the tar plays nothing new on the
+  Odradek (it only points), so `tar` is held from the animation that starts it (`surprise`, a BT
+  detecting Sam) until one that ends it (a warning light) with the `latch` deriver.
+- **Some values are counts, not play states.** Animations shared by many characters count up:
+  `gzmcrd_s_idle_lp` (BT cords) went 7 → 21 as BTs appeared. Signals only compare for equality, so
+  a count needs a deriver.
 
 ## Adding an effect
 
@@ -165,6 +173,16 @@ top_row = { rows = [0] }
 macro_keys = { keys = ["G1", "G2", "G3"] }
 ```
 
+**Handing the keyboard back.** Odradek Sync only lights the keyboard while the game runs. The rest
+of the time, `LightingDevice.release()` gives it back: on OpenRGB that's the mode the keyboard was
+in before (if it wasn't Direct), or the device file's release mode. Set one when the keyboard can't
+run its own lighting in Direct, or when OpenRGB leaves it in Direct on its own:
+
+```toml
+[openrgb]
+release_mode = "Off"              # an OpenRGB mode of this device (the AULA F75's own lighting runs in Off)
+```
+
 To improve the fallback itself, add aliases to `keyboard_layouts._ALIASES`, a size class to
 `keyboard_layouts`, or a new `LayoutStrategy` (e.g. for ISO or split boards). Then register it
 with `LayoutFactory().register(...)`. `tests/test_layouts.py` round-trips every size class.
@@ -187,7 +205,9 @@ unavailable); `lighting.detect_backend()` decides which backend `auto` uses.
 ## Windows: help verify
 
 The Windows backend (`platform/windows.py`) uses `ReadProcessMemory`, `VirtualQueryEx` and
-Toolhelp snapshots, but nobody has run it on Windows yet. To verify:
+Toolhelp snapshots. It's tested on Windows 10 with the standard edition 1.0.8 (Epic), and
+`tests/test_windows.py` runs it against a real process in CI's Windows job. Still untested on
+Windows: the player app (tray, autostart), the installer, and Steam builds. To verify a setup:
 
 1. `odradek-sync recon list --active` while the game runs. Do Odradek animations appear?
 2. `odradek-sync run --lighting none`, then fold and unfold the Odradek with a scan. Do the
@@ -200,11 +220,22 @@ If `recon list` finds nothing, the vtable RVA may differ for your build: run
 ## A new game build (or Steam vs Epic)
 
 1. `odradek-sync recon discover` with the game running. It finds resource-path strings,
-   pointers to them, and the vtable they belong to (about a minute). The top candidate gives
-   `vtable_rva`, `name_offset` and the likely `state_offset`.
-2. Copy `config/games/death_stranding_dc.toml` to e.g. `death_stranding_dc_steam.toml`, change
-   `id`, the offsets, and `verified_builds`, and copy the signal map under the new id.
-3. Run with `--game death_stranding_dc_steam`, and check with `recon list --active`.
+   pointers to them, and the vtable they belong to (a minute or two). Pick the candidate whose
+   example is an Odradek animation (`.../odra/odra/an_odra_...`) and whose state offset is near
+   100%. It isn't always the top one: on the standard edition, a class of rumble mappings came
+   first with a few more objects.
+2. If its `name_offset` and `state_offset` match `config/games/death_stranding_dc.toml`, add the
+   `vtable_rva` to that file's list and the build to `verified_builds`. That's all the standard
+   edition needed. The first scan looks for every listed vtable and keeps the one that finds
+   named objects; `odradek-sync run` logs which one it attached with.
+3. If the layout differs too, copy the file to e.g. `death_stranding_steam.toml`, change `id`,
+   the offsets and `verified_builds`, copy the signal map under the new id, and run with
+   `--game death_stranding_steam`.
+4. Check with `recon list --active`.
+5. Optional, pause detection: find the build's game speed, an f32 in the exe's writable data that is
+   1.0 while playing and 0 while paused, and add a `[[game_speed]]` entry (`build` = the new
+   `vtable_rva`, `rva` = its address minus the exe's load address). RESEARCH.md step 11 describes how
+   it was found; without an entry, that build simply isn't detected as paused.
 
 ## The player app and releases
 
@@ -227,7 +258,7 @@ entry point. It differs from the developer CLI in these ways:
 - **Tray** (`app/tray/`): the menu is one data model (`menu_items`) shared by the backends.
   - Linux: `sni.py` speaks StatusNotifierItem + dbusmenu over D-Bus with jeepney, so there's no
     GTK/Qt dependency.
-  - Windows: `win.py` uses pystray, and is untested.
+  - Windows: `win.py` uses pystray, and is untested on Windows.
   - Clicks become action names on a queue, handled on the main thread. No tray = `NullTray`.
   - To inspect the Linux tray: `busctl --user call org.kde.StatusNotifierItem-<pid>-1 /MenuBar
     com.canonical.dbusmenu GetLayout iias -- 0 -1 0`.
