@@ -90,6 +90,33 @@ class ShippedSignalMapTest(unittest.TestCase):
         self.assertEqual(got, [(True, False, False), (False, True, True), (False, False, True),
                                (False, False, True), (False, False, False)])
 
+    def test_dragged_towards_a_big_bt_like_the_recording(self):
+        """A recon watch recording (Director's Cut): cross -> its light held on -> blinking as Sam gets away
+        -> the cross breaks up -> good -> folded."""
+        p = SignalPipeline(SignalMap.from_dict(ConfigLoader([]).load("signals", "death_stranding_dc")))
+        open_ = {"odra_main_sleep_lp": 3, "odra_arm_sleep_lp": 3}          # open, not folded
+        light = {"odra_main_cross_warrning_sign_lp": 3, "odra_arm_cross_idle_lp": 3}
+        idle = {"odra_main_cross_idle_lp": 3, "odra_arm_cross_idle_lp": 3}
+        steps = [(0.0, {"odra_main_cross_st": 3, "odra_arm_cross_st": 3})]
+        steps += [(16.0 + i, light) for i in range(61)]                    # held on for a minute
+        t = 77.0
+        for gap in (1.5, 1.5, 1.5, 3.0, 3.0):                             # then blinking, further apart
+            steps += [(t, idle), (t + gap, light)]
+            t += gap + 0.44
+        steps += [(t, idle), (t + 0.2, {"odra_main_cross_lose_lp": 3}), (t + 0.4, {"odra_main_cross_ed": 3}),
+                  (t + 0.9, {"odra_main_good": 3}), (t + 6.0, {"odra_main_sleep_lp": 4, "odra_arm_sleep_lp": 4})]
+        got = []
+        for when, playing in steps:
+            s = p.evaluate(when, {**open_, **playing})
+            got.append((when, s["cross"], s["cross_pulse"], s["cross_escape"], s["folded"], s["blue"], s["tar"]))
+        self.assertEqual(got[0][1:], (True, None, False, False, False, False))      # caught: the cross forms
+        self.assertEqual(got[30][1:3], (True, "rapid"))                             # its light held on
+        self.assertEqual(got[-6][1:3], (True, "slow"))                              # blinking every ~3.4 s
+        self.assertTrue(all(g[1] for g in got[:-4]))                                # the cross the whole time
+        self.assertEqual(got[-4][1:5], (False, None, True, False))                  # got away
+        self.assertEqual(got[-1][1:5], (False, None, False, True))                  # folded
+        self.assertFalse(any(g[5] or g[6] for g in got))                            # never blue, never the tar
+
     def test_surprise_during_blue_is_not_the_tar(self):
         """Seen once live: the Odradek's surprise during rapid blue, with no orange before and no tar after."""
         p = SignalPipeline(SignalMap.from_dict(ConfigLoader([]).load("signals", "death_stranding_dc")))

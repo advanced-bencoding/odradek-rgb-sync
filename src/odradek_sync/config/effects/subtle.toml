@@ -30,6 +30,11 @@ blend = "replace"
   params = { color = "#c80a00", period = 6.0, min = 0.08, max = 0.25 }
 
   [[layer.rule]]
+  when = ["cross"]
+  effect = "cross"              # dragged towards a big BT: a steady, dim cross, no flashing
+  params = { color = "#ff1e00", background = "#ff5a00", floor = 0.04 }
+
+  [[layer.rule]]
   when = ["tar"]
   effect = "radar_sweep"        # caught in the tar: a slow orange wing over steady blue
   params = { color = "#ff5a00", background = "#146eff", floor = 0.3, rpm = 8, tail = 3.0 }
@@ -140,6 +145,10 @@ signals = { orange = true, bb_crying = true }
 label = "Caught: a BT detects Sam, then the tar (orange wing over blue)"
 signals = { tar = true, bb_crying = true }
 blink = [{ signal = "bt_detected", period = 8.0, width = 2.2 }]
+
+[[demo]]
+label = "Dragged towards a big BT: the cross"
+signals = { cross = true, cross_pulse = "rapid", bb_crying = true }
 
 [[demo]]
 label = "Autotoxemia"

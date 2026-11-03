@@ -94,7 +94,7 @@ tray's Lighting entries set it). Restart Odradek Sync after editing.
 | Game build | Standard edition 1.0.8 and Director's Cut (October 2026), both Epic Games Store; detected automatically. Other builds may need `recon discover` |
 | Lighting | OpenRGB (tested: AULA F75 over USB). Keyboards without explicit support get an automatic fallback layout. A terminal preview for development |
 | ASUS ROG Flow Z13 (2025) | **Linux only**, through z13ctl's daemon, picked automatically. Written and unit-tested, **not tested on a Z13 yet**. Help wanted. Not supported on Windows (z13ctl is Linux-only, and OpenRGB doesn't support the Z13) |
-| Mapped states | scan, waking, folded, blue (rapid/fast/slow), orange, BT detects you, caught in the tar, autotoxemia, BB scared/crying/searching; the game paused (standard edition only so far) |
+| Mapped states | scan, waking, folded, blue (rapid/fast/slow), orange, BT detects you, caught in the tar, dragged towards a big BT (the cross), autotoxemia, BB scared/crying/searching; the game paused |
 | Not mapped yet | red, orange spin speed, how many BTs are near (see `odradek-sync signals`) |
 
 ## Install (developers)
@@ -182,6 +182,7 @@ Which keys count as `top_row` comes from the device: matrix row 0 by default, or
 | Orange | orange radar sweep spinning around the board |
 | A BT detects you (the Odradek freezes, pointing at it) | steady orange |
 | Caught in the tar (one wing orange, the rest blue), until you escape | an orange wing sweeping over blue |
+| Dragged towards a big BT (the Odradek forms a cross) | a red cross across the board: steady while its light is held on, flashing with it as you get away; an amber ring when you escape |
 | Autotoxemia | dying red flicker, keys going dark |
 
 **BB (top row):**

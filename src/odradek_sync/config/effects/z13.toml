@@ -26,6 +26,16 @@ blend = "replace"
   params = { mode = "breathe", color = "#500400", color2 = "#140100", speed = "slow" }
 
   [[layer.rule]]
+  when = ["cross", "cross_pulse=rapid"]
+  effect = "aura"               # no shapes in firmware: the cross's light held on, steady red
+  params = { mode = "static", color = "#ff1e00" }
+
+  [[layer.rule]]
+  when = ["cross"]
+  effect = "aura"               # getting away: red breathing
+  params = { mode = "breathe", color = "#ff1e00", color2 = "#300400", speed = "fast" }
+
+  [[layer.rule]]
   when = ["tar", "bt_detected"]
   effect = "aura"               # the Odradek freezing, pointing at the BT
   params = { mode = "static", color = "#ff5a00" }
@@ -121,6 +131,15 @@ signals = { orange = true, bb_crying = true }
 label = "Caught: a BT detects Sam, then the tar (orange wing over blue)"
 signals = { tar = true, bb_crying = true }
 blink = [{ signal = "bt_detected", period = 8.0, width = 2.2 }]
+
+[[demo]]
+label = "Dragged towards a big BT: the cross, its light held on"
+signals = { cross = true, cross_pulse = "rapid", bb_crying = true }
+
+[[demo]]
+label = "Getting away from the big BT: the cross flashing"
+signals = { cross = true, cross_pulse = "fast" }
+blink = [{ signal = "cross_flash", period = 1.9, width = 0.44 }]
 
 [[demo]]
 label = "Autotoxemia"

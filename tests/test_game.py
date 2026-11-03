@@ -140,15 +140,17 @@ class SessionTest(unittest.TestCase):
             listed[0], m.pid = True, 5150                # the game started again: a new process
             self.assertEqual(s.try_attach(), Attach.ATTACHED)
 
-    def test_paused_reads_the_builds_game_speed(self):
+    def test_paused_reads_the_builds_pause_indicator(self):
         import struct
 
+        from odradek_sync.config import PauseIndicator
         from odradek_sync.game import Attach, GameSession
         from odradek_sync.platform import ProcessInfo
 
         m = world()
-        speed = MODULE_BASE + 0x44E2424
+        speed, flag = MODULE_BASE + 0x44E2424, MODULE_BASE + 0x6CE0869
         m.mem[speed] = bytearray(struct.pack("<f", 1.0))
+        m.mem[flag] = bytearray(1)
 
         class Plat:
             def find_process(self, exes):
@@ -158,14 +160,25 @@ class SessionTest(unittest.TestCase):
                 return m
 
         with tempfile.TemporaryDirectory() as d:
-            for game_speed, detects in (({VTABLE_RVA: 0x44E2424}, True), ({0x123: 0x44E2424}, False)):
-                s = GameSession(Plat(), dataclasses.replace(PROFILE, game_speed=game_speed), {"odra_arm_search"}, Path(d))
+            for pause, detects in (({VTABLE_RVA: PauseIndicator(0x44E2424, "speed")}, True),
+                                   ({0x123: PauseIndicator(0x44E2424, "speed")}, False)):
+                s = GameSession(Plat(), dataclasses.replace(PROFILE, pause=pause), {"odra_arm_search"}, Path(d))
                 self.assertEqual(s.try_attach(), Attach.ATTACHED)
                 self.assertFalse(s.paused)
                 m.write(speed, struct.pack("<f", 0.0))       # pause menu, or the window in the background
                 self.assertEqual(s.paused, detects)          # another build's address is never used
                 m.write(speed, struct.pack("<f", 1.0))
+                self.assertFalse(s.paused)                   # resumed (focus back): playing again
                 s.detach()
+            # the Director's Cut: a byte, nonzero while paused
+            s = GameSession(Plat(), dataclasses.replace(PROFILE, pause={VTABLE_RVA: PauseIndicator(0x6CE0869, "flag")}),
+                            {"odra_arm_search"}, Path(d))
+            self.assertEqual(s.try_attach(), Attach.ATTACHED)
+            self.assertFalse(s.paused)
+            m.write(flag, b"\x01")
+            self.assertTrue(s.paused)
+            m.write(flag, b"\x00")
+            self.assertFalse(s.paused)
 
 
 class DiscoverTest(unittest.TestCase):

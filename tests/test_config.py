@@ -47,16 +47,32 @@ class GameProfileTest(unittest.TestCase):
             "animation_objects": {"vtable_rva": vtable_rva, "state_offset": 0x18, "name_offset": 0x28,
                                   "name_filter": "/odra/"}})
 
-    def test_game_speed_per_build(self):
-        p = GameProfile.from_dict({
-            "game": {"id": "g", "name": "G", "executables": ["G.exe"]},
-            "animation_objects": {"vtable_rva": [0x10, 0x20], "state_offset": 0x18, "name_offset": 0x28,
-                                  "name_filter": "/odra/"},
-            "game_speed": [{"build": 0x20, "rva": 0x500}]})
-        self.assertEqual(p.game_speed, {0x20: 0x500})
-        self.assertEqual(self.profile(0x10).game_speed, {})
-        shipped = ConfigLoader([]).game("death_stranding_dc")
-        self.assertIn(0x38703C0, shipped.game_speed)            # standard edition 1.0.8
+    def test_pause_per_build(self):
+        from odradek_sync.config import PauseIndicator
+        d = {"game": {"id": "g", "name": "G", "executables": ["G.exe"]},
+             "animation_objects": {"vtable_rva": [0x10, 0x20], "state_offset": 0x18, "name_offset": 0x28,
+                                   "name_filter": "/odra/"},
+             "pause": [{"build": 0x10, "rva": 0x500}, {"build": 0x20, "rva": 0x600, "kind": "flag"}]}
+        p = GameProfile.from_dict(d)
+        self.assertEqual(p.pause, {0x10: PauseIndicator(0x500, "speed"), 0x20: PauseIndicator(0x600, "flag")})
+        self.assertEqual(self.profile(0x10).pause, {})
+        d["pause"][1]["kind"] = "u32"
+        with self.assertRaises(ConfigError):
+            GameProfile.from_dict(d)
+        shipped = ConfigLoader([]).game("death_stranding_dc").pause
+        self.assertEqual(shipped[0x38703C0].kind, "speed")       # standard edition 1.0.8
+        self.assertEqual(shipped[0x3C12968].kind, "flag")        # Director's Cut
+
+    def test_pause_indicator_reads(self):
+        import struct
+        from odradek_sync.config import PauseIndicator
+        speed, flag = PauseIndicator(0, "speed"), PauseIndicator(0, "flag")
+        self.assertTrue(speed.paused(struct.pack("<f", 0.0)))
+        self.assertFalse(speed.paused(struct.pack("<f", 1.0)))
+        self.assertTrue(flag.paused(b"\x01"))
+        self.assertFalse(flag.paused(b"\x00"))
+        self.assertFalse(flag.paused(None))                      # unreadable: carry on as if playing
+        self.assertFalse(speed.paused(b"\x00"))                  # short read
 
     def test_vtable_rva_is_one_build_or_a_list_of_builds(self):
         self.assertEqual(self.profile(0x10).layout.vtable_rvas, (0x10,))

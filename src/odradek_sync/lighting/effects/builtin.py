@@ -100,6 +100,28 @@ class FlashMirror(Effect):
         return [scale(self.c, self.floor + (1 - self.floor) * k)] * ctx.geometry.n
 
 
+@register_effect("cross")
+class Cross(Effect):
+    """A plus sign through an anchor, like the Odradek's cross shape. Steady, or flashing each time `signal`
+    turns on (mirroring the game's light, like flash_mirror). params: color, origin, arm (half-width of each
+    bar, keys), background (colour off the cross; default: color), floor (its brightness), signal, flash (s),
+    dim (the cross's brightness between flashes)."""
+
+    def setup(self):
+        self.c, self.origin, self.arm = self.color(), self.p("origin", "center"), float(self.p("arm", 0.6))
+        self.bg = self.color("background") if "background" in self.params else self.c
+        self.floor, self.signal = float(self.p("floor", 0.05)), self.p("signal", None)
+        self.flash, self.dim = float(self.p("flash", 0.44)), float(self.p("dim", 0.3))
+
+    def render(self, t, ctx):
+        o, k = ctx.geometry.point(self.origin), 1.0
+        if self.signal:
+            ago = ctx.now - ctx.rises.get(self.signal, -1e9)
+            k = self.dim + (1 - self.dim) * (math.sin(math.pi * ago / self.flash) if 0 <= ago < self.flash else 0.0)
+        on, off = scale(self.c, k), scale(self.bg, self.floor)
+        return self.each(ctx, lambda i, p: on if abs(p[0] - o[0]) <= self.arm or abs(p[1] - o[1]) <= self.arm else off)
+
+
 @register_effect("pulse")
 class Pulse(Effect):
     """A flash every `period` seconds (time-driven, no signal needed). params: color, period, flash, floor."""

@@ -109,21 +109,30 @@ class OpenRGBReleaseTest(unittest.TestCase):
     class Raw:
         """An openrgb-python device: its modes, the active one, and what was sent to it."""
 
-        def __init__(self, modes, active):
-            self.modes = [types.SimpleNamespace(name=n) for n in modes]
+        def __init__(self, modes, active, name="AULA F75"):
+            self.name, self.modes = name, [types.SimpleNamespace(name=n) for n in modes]
             self.active_mode, self.sent = modes.index(active), []
+            self.reported: int | None = None       # what OpenRGB will say on the next update(), if it changed
 
         def set_mode(self, mode):
             self.sent.append(mode.name)
+            self.active_mode = self.modes.index(mode)
+
+        def update(self):
+            self.sent.append("update")
+            if self.reported is not None:
+                self.active_mode, self.reported = self.reported, None
 
         def set_colors(self, colors, fast=False):
             self.sent.append("colors")
 
-    def device(self, modes, active, config=None):
+    def device(self, modes, active, config=None, client=None):
         from odradek_sync.lighting.openrgb_repository import OpenRGBDevice
         raw = self.Raw(modes, active)
-        d = OpenRGBDevice(raw, DeviceInfo("0", "AULA F75", "keyboard", ()))
-        d.configure(config or {})
+        if client is not None:
+            client.devices = [raw]
+        d = OpenRGBDevice(raw, DeviceInfo("0", "AULA F75", "keyboard", ()), client)
+        self.warning = d.configure(config or {})
         return d, raw
 
     def test_aula_goes_off_without_a_game_and_direct_on_the_next_frame(self):
@@ -142,10 +151,105 @@ class OpenRGBReleaseTest(unittest.TestCase):
         self.assertEqual(raw.sent, ["Direct", "colors", "Wave"])
         self.assertFalse(self.device(["Static", "Direct"], "Direct")[0].release())   # nothing to give back
 
-    def test_a_release_mode_the_device_lacks_is_an_error(self):
-        from odradek_sync.lighting import DeviceError
-        with self.assertRaises(DeviceError):
-            self.device(["Off", "Direct"], "Direct", {"openrgb": {"release_mode": "Rainbow"}})
+    def test_a_release_mode_the_device_lacks_falls_back_with_a_warning(self):
+        # another OpenRGB version may name the modes differently: the keyboard must still work
+        d, raw = self.device(["Off", "Direct"], "Direct", {"openrgb": {"release_mode": "Rainbow"}})
+        self.assertIn("'Rainbow'", self.warning)
+        self.assertIn("no-game look", self.warning)
+        self.assertFalse(d.release())                # found in Direct: nothing to give back
+        d, raw = self.device(["Wave", "Direct"], "Wave", {"openrgb": {"release_mode": "Rainbow"}})
+        self.assertIn("wave mode", self.warning)
+        d.show([(0, 0, 0)])
+        self.assertTrue(d.release())
+        self.assertEqual(raw.sent, ["Direct", "colors", "Wave"])
+        self.device(["Off", "Direct"], "Direct", {"openrgb": {"release_mode": "off"}})
+        self.assertIsNone(self.warning)
+
+    def test_a_mode_changed_behind_its_back_is_noticed_at_the_next_sync(self):
+        # OpenRGB puts the keyboard back in Direct when it detects it again: the knob would stay locked
+        d, raw = self.device(["Off", "Direct"], "Direct", {"openrgb": {"release_mode": "Off"}})
+        self.assertTrue(d.release())
+        raw.reported = 1                             # re-detected: Direct again
+        self.assertTrue(d.release())                 # not time to check yet: the cache says Off
+        d._next_sync = 0
+        self.assertTrue(d.release())
+        self.assertTrue(d.release())                 # checked again only after sync_every
+        self.assertEqual(raw.sent, ["Off", "update", "Off"])
+        raw.reported, d._next_sync = 0, 0            # someone switched it to Off mid-game
+        d.show([(0, 0, 0)])
+        self.assertEqual(raw.sent[3:], ["update", "Direct", "colors"])
+
+    def test_follows_the_device_when_openrgb_rebuilds_its_list(self):
+        from odradek_sync.lighting import NoDeviceError
+        client = types.SimpleNamespace()
+        d, old = self.device(["Off", "Direct"], "Off", {"openrgb": {"release_mode": "Off"}}, client)
+        new = self.Raw(["Off", "Direct"], "Direct")
+        client.devices = [self.Raw(["Static", "Direct"], "Static", name="Mouse"), new]   # replugged
+        d._next_sync = 0
+        self.assertTrue(d.release())
+        self.assertEqual(new.sent, ["Off"])
+        d.show([(0, 0, 0)])
+        self.assertEqual(new.sent, ["Off", "Direct", "colors"])
+        client.devices, d._next_sync = [], 0           # unplugged for good
+        with self.assertRaises(NoDeviceError):
+            d.release()
+
+
+class EffectsCommandReleaseTest(unittest.TestCase):
+    """`effects demo` and `effects show` leave the keyboard the way quitting `run` does: its own lighting back."""
+
+    class Dev(LightingDevice):
+        def __init__(self):
+            self.info, self.log = INFO, []
+
+        def show(self, colors):
+            if not self.log or self.log[-1] != "frame":
+                self.log.append("frame")
+
+        def release(self):
+            self.log.append("release")
+            return True
+
+        def close(self):
+            self.log.append("close")
+
+    def run_cli(self, argv):
+        from unittest import mock
+        from odradek_sync import cli
+        dev = self.Dev()
+        open_lighting = lambda args, loader, em: (dev, Compositor(em, LayoutFactory().build(dev.info)))
+        with mock.patch.object(cli, "open_lighting", open_lighting), mock.patch("builtins.print"):
+            args = cli.build_parser().parse_args(argv)
+            args.func(args)
+        return dev.log
+
+    def test_show_hands_the_keyboard_back(self):
+        self.assertEqual(self.run_cli(["effects", "show", "solid", "--seconds", "0.05", "--lighting", "console"]),
+                         ["frame", "release", "close"])
+
+    def test_demo_hands_the_keyboard_back(self):
+        self.assertEqual(self.run_cli(["effects", "demo", "--seconds", "0.05", "--lighting", "console", "--effects", "default", "Caught"]),
+                         ["frame", "release", "close"])
+
+
+class CrossEffectTest(unittest.TestCase):
+    def test_a_plus_sign_through_the_middle(self):
+        info = DeviceInfo("k", "Grid", "keyboard", tuple(LedInfo(i, f"K{i}") for i in range(5 * 7)),
+                          tuple(tuple(r * 7 + c for c in range(7)) for r in range(5)))
+        g = LayoutFactory().build(info)
+        ctx = FrameContext(g, 0.0, {}, {})
+        frame = create_effect("cross", {"color": "#ff0000", "background": "#0000ff", "floor": 0.5}).render(0.0, ctx)
+        on = {i for i, c in enumerate(frame) if c == (255, 0, 0)}
+        self.assertEqual(on, {r * 7 + 3 for r in range(5)} | {2 * 7 + c for c in range(7)})   # column 3, row 2
+        self.assertTrue(all(c == (0, 0, 127.5) for i, c in enumerate(frame) if i not in on))   # background at floor
+
+    def test_flashes_with_its_signal(self):
+        g = LayoutFactory().build(INFO)
+        cross = create_effect("cross", {"color": "#ff0000", "signal": "cross_flash", "dim": 0.2})
+        mid = lambda now: max(max(c) for c in cross.render(now, FrameContext(g, now, {}, {"cross_flash": 10.0})))
+        self.assertEqual(mid(5.0), 51)                   # before the flash: dim
+        self.assertEqual(mid(10.22), 255)                # mid-flash: full
+        self.assertEqual(mid(11.0), 51)                  # after it: dim again
 
 
 class OutputReleaseTest(unittest.TestCase):

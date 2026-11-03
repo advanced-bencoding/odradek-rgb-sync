@@ -16,7 +16,8 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from ..util import RGB
-from .device import BackendMissingError, DeviceError, DeviceInfo, DeviceRepository, LedInfo, LightingDevice, pick
+from .device import (BackendMissingError, DeviceError, DeviceInfo, DeviceRepository, LedInfo, LightingDevice,
+                     NoDeviceError, pick)
 
 
 def find_openrgb() -> str | None:
@@ -54,26 +55,60 @@ class OpenRGBDevice(LightingDevice):
     `[openrgb] release_mode` (the AULA F75 needs "Off": it locks out its own styles and its knob in Direct,
     and OpenRGB puts it in Direct whenever it detects it), else the mode the device was in when opened.
     If that was Direct as well there's nothing to give back to.
+
+    The mode is cached so each frame doesn't cost a round trip, and checked against OpenRGB every
+    `sync_every` seconds: OpenRGB puts a device back in Direct when it detects it again (a replug, a
+    rescan), and another client can change the mode.
     """
 
-    def __init__(self, raw, info: DeviceInfo):
+    sync_every = 5.0
+
+    def __init__(self, raw, info: DeviceInfo, client=None):
         from openrgb.utils import RGBColor
-        self._raw, self.info, self._RGBColor = raw, info, RGBColor
+        self._raw, self.info, self._RGBColor, self._client = raw, info, RGBColor, client
         self._modes = {m.name.lower(): m for m in raw.modes}
         if "direct" not in self._modes:
             raise DeviceError(f"{info.name} has no Direct mode, so per-LED control isn't possible")
-        self._mode = raw.modes[raw.active_mode].name.lower()     # as far as we know
-        self._release = self._mode if self._mode != "direct" else None
+        self._mode = self._active()                                # as far as we know
+        self._found = self._mode if self._mode != "direct" else None    # the device's own mode, if it was in one
+        self._release = self._found
+        self._next_sync = time.monotonic() + self.sync_every
 
-    def configure(self, device_config: dict) -> None:
+    def _active(self) -> str | None:
+        """The mode OpenRGB last reported, or None if it reported none we know."""
+        i = self._raw.active_mode
+        return self._raw.modes[i].name.lower() if 0 <= i < len(self._raw.modes) else None
+
+    def configure(self, device_config: dict) -> str | None:
         mode = device_config.get("openrgb", {}).get("release_mode")
-        if mode is not None:
-            if mode.lower() not in self._modes:
-                raise DeviceError(f"{self.info.name}: release_mode {mode!r} isn't one of its modes "
-                                  f"({', '.join(m.name for m in self._raw.modes)})")
-            self._release = mode.lower()
+        self._release = self._found
+        if mode is None:
+            return None
+        if mode.lower() not in self._modes:
+            # an OpenRGB version that names the modes differently: keep the fallback rather than lose the device
+            fallback = f"the {self._found} mode it was in" if self._found else "the no-game look"
+            return (f"{self.info.name}: this OpenRGB has no {mode!r} mode for it "
+                    f"({', '.join(m.name for m in self._raw.modes)}); without a game it gets {fallback} instead")
+        self._release = mode.lower()
+        return None
+
+    def _sync(self) -> None:
+        now = time.monotonic()
+        if now < self._next_sync:
+            return
+        self._next_sync = now + self.sync_every
+        self._raw.update()
+        if self._client is not None and not any(d is self._raw for d in self._client.devices):
+            # OpenRGB rebuilt its device list (a rescan or a replug): follow this device into the new one
+            same = [d for d in self._client.devices if d is not None and d.name == self.info.name]
+            if not same:
+                raise NoDeviceError(f"{self.info.name} is no longer in OpenRGB")
+            self._raw = same[0]
+            self._modes = {m.name.lower(): m for m in self._raw.modes}
+        self._mode = self._active()
 
     def _set_mode(self, name: str) -> None:
+        self._sync()
         if self._mode != name:
             self._raw.set_mode(self._modes[name])
             self._mode = name
@@ -162,4 +197,4 @@ class OpenRGBRepository(DeviceRepository):
     def open(self, selector: str | None = None) -> LightingDevice:
         client = self._connect()
         info = pick(self.list_devices(), selector)
-        return OpenRGBDevice(client.devices[int(info.id)], info)
+        return OpenRGBDevice(client.devices[int(info.id)], info, client)

@@ -20,9 +20,12 @@ Director's Cut under Proton.
 - The keyboard shows when a BT detects you (steady orange, as the Odradek freezes and points at it)
   and when you're caught in the tar (an orange wing sweeping over blue, like the Odradek's own),
   until you escape. BB's crying on the top row now lasts through the tar too.
+- Being dragged through the tar towards a big BT, when the Odradek forms a cross: the keyboard shows
+  a red cross, steady while the Odradek's light is held on and flashing with it as you pull away,
+  and an amber ring when you get away. Mapped from one encounter so far.
 - Pausing the game (the pause menu, or switching to another window) rests the keyboard in its
-  no-game look until you resume. Standard edition 1.0.8 only for now; the Director's Cut needs its
-  pause address found first.
+  no-game look, and the game's lighting comes straight back when you resume. Works on the standard
+  edition 1.0.8 and on the Director's Cut (Epic).
 - Odradek Sync only takes over the keyboard while the game runs. Before and after (and when you quit
   it), the keyboard gets its own lighting back: on the AULA F75 that brings back its styles and the
   knob that switches them, which stop working while OpenRGB has it in Direct mode (OpenRGB does that

@@ -56,8 +56,10 @@ class LightingDevice(ABC):
         """Show what the compositor has for this moment."""
         self.show(compositor.frame(now, signals))
 
-    def configure(self, device_config: dict) -> None:
-        """Apply this device's config/devices entry (see `device_config`). Default: nothing to apply."""
+    def configure(self, device_config: dict) -> str | None:
+        """Apply this device's config/devices entry (see `device_config`). Returns a warning for the log if
+        part of it can't be applied (the device still works). Default: nothing to apply."""
+        return None
 
     def release(self) -> bool:
         """Give the device back to its own lighting while no game is running; the next frame takes it again.

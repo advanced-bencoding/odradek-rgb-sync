@@ -82,7 +82,8 @@ class ResilientKeyboard(Output):
             raise NoDeviceError("no keyboard")
         info = keyboards[0]
         device = repo.open(info.id if not self.selector else info.name)
-        device.configure(device_config(device.info.name, self.overrides))
+        if warning := device.configure(device_config(device.info.name, self.overrides)):
+            self.log.once(warning)
         return device, info, LayoutFactory().build(device.info, self.overrides)
 
     def _connect(self, now: float) -> None:

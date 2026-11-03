@@ -39,7 +39,8 @@ def loader_from(args) -> ConfigLoader:
 def open_lighting(args, loader: ConfigLoader, effect_map: EffectMap):
     repo = create_repository(args.lighting)
     device = repo.open(args.device)
-    device.configure(device_config(device.info.name, loader.devices()))
+    if warning := device.configure(device_config(device.info.name, loader.devices())):
+        log(warning)
     geometry = LayoutFactory().build(device.info, loader.devices())
     return device, Compositor(effect_map, geometry)
 
@@ -158,6 +159,7 @@ def cmd_effects_show(args):
         _render_for(device, compositor, args.seconds or float("inf"), lambda t: {})
     except KeyboardInterrupt:
         pass
+    device.release()        # the keyboard's own lighting back, like `effects demo` and quitting `run`
     device.close()
 
 

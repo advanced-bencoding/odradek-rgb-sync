@@ -42,6 +42,25 @@ confidence = "likely"
 description = "A BT has detected Sam: orange stops and the Odradek freezes, pointing at the BT (2.2 s). The tar follows"
 evidence = "3/3 captures (standard edition 1.0.8, Windows, first BT area; 2 recorded, 1 live): starts in the same frame orange ends, ~3-4 s before the BT cords vanish into the tar. Player: 'right when the BT detects us, the Odradek goes static, pointing towards the BT'. Also played once during rapid blue with no orange before and no tar after, so `tar` ignores it while blue is on."
 
+[signals.cross]
+animations = ["odra_main_cross_st", "odra_arm_cross_st", "odra_main_cross_idle_lp", "odra_arm_cross_idle_lp",
+              "odra_main_cross_warrning_sign_lp"]
+confidence = "weak"
+description = "Caught in the tar and dragged towards a big BT: the Odradek in its cross shape, until Sam gets away"
+evidence = "1 episode (Director's Cut, Linux, November 2026; a recon watch recording): cross_st while caught and pulled, then cross_idle_lp with the cross's warning light for 75 s, until the player escaped (cross_lose_lp, cross_ed). odra_main/arm_cross without a suffix was never seen."
+
+[signals.cross_flash]
+animations = ["odra_main_cross_warrning_sign_lp"]
+confidence = "weak"
+description = "Raw: the cross's warning light. Held on while the big BT is close, blinking further apart as Sam gets away. Use the derived `cross_pulse` instead."
+evidence = "Held 60 s, then on 0.44 s every ~1.9 s, then every ~3.4 s, swapping with odra_main_cross_idle_lp each time; like the blue light (blue_flash)."
+
+[signals.cross_escape]
+animations = ["odra_main_cross_lose_lp", "odra_arm_cross_lose_lp", "odra_main_cross_ed", "odra_arm_cross_ed"]
+confidence = "weak"
+description = "Got away from the big BT: the cross breaking up (0.7 s); then the Odradek's 'good' and it folds"
+evidence = "1 episode: lose_lp 0.2 s then cross_ed 0.5 s, right as the player escaped; odra_main/arm_good followed."
+
 [signals.spinning]
 animations = ["odra_main_gzm_on_spin"]
 confidence = "weak"
@@ -97,6 +116,17 @@ hold = 4.5
 steady = 1.0
 slow_threshold = 2.5
 
+# The cross's warning light, like blue: held on while the big BT is close, blinking further apart as Sam gets away.
+[[derived]]
+kind = "pulse_rate"
+source = "cross_flash"
+cancel = ["cross_escape", "folded"]
+active = "cross_warning"
+level = "cross_pulse"      # rapid | fast | slow
+hold = 4.5
+steady = 1.0
+slow_threshold = 2.5
+
 # Caught in the tar. No animation shows it (the Odradek only points; in-game one wing is orange, the others
 # blue, tracking the creatures in the tar), so it is held from the BT detecting Sam until a warning light is back.
 # Evidence: 2/2 recordings (standard edition 1.0.8, Windows), narrated by the player: detected -> tar ~3-4 s later
@@ -107,8 +137,8 @@ kind = "latch"
 active = "tar"
 set = ["bt_detected"]
 unless = ["blue"]          # a real capture comes straight out of orange (which cancels blue); see bt_detected
-clear = ["blue_flash", "orange", "folded"]
-max_seconds = 60           # a missed exit (a cutscene, dragged to a big BT) can't leave it on
+clear = ["blue_flash", "orange", "folded", "cross_escape"]
+max_seconds = 60           # a missed exit (a cutscene) can't leave it on; being dragged to a big BT is `cross`
 
 # Known states nobody has mapped yet. Use recon mode to find them.
 [unmapped]

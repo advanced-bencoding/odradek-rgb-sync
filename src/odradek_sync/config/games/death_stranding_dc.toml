@@ -28,9 +28,15 @@ name_offset = 0x28         # char* resource path
 name_filter = "/odra/odra/|/bbyface_r/|/bby/bbydef/|/samface_r/"
 strip_prefix = "an_"
 
-# Pause detection, per build: where the game keeps its speed, an f32 in the exe's data (address -
-# DeathStranding.exe load address). 1.0 while playing, 0 while paused: the pause menu, or the window
-# in the background. A build without an entry just isn't detected as paused.
-[[game_speed]]
-build = 0x38703C0          # standard edition 1.0.8 (its vtable_rva)
+# Pause detection, per build (`build` = its vtable_rva): where the game says it's paused, in the exe's
+# data (address - DeathStranding.exe load address). Paused means the pause menu, or the window in the
+# background. A build without an entry just isn't detected as paused. See RESEARCH.md step 11.
+[[pause]]
+build = 0x38703C0          # standard edition 1.0.8
 rva = 0x44E2424
+kind = "speed"             # the game's speed: f32, 1.0 while playing, 0 while paused
+
+[[pause]]
+build = 0x3C12968          # Director's Cut (Epic): no speed value in the exe's data, but this byte
+rva = 0x6CE0869
+kind = "flag"              # 0 while playing, 1 while paused

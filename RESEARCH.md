@@ -262,9 +262,45 @@ for losing focus. A u32 at `0x5108228` (1 while paused) flipped with it, with he
 its neighbours, so it looks like the pause menu's state; the speed was chosen because "the game
 clock is stopped" is the definition of paused.
 
-The profile keeps this per build (`[[game_speed]]`, keyed by the build's vtable RVA), and while
-the speed is 0 the engine shows the no-game look and stops the derived signals' clock, so a pause
+The profile keeps this per build (`[[pause]]`, keyed by the build's vtable RVA), and while the
+game is paused the engine shows the no-game look and stops the derived signals' clock, so a pause
 in the tar doesn't use up `tar`'s 60 s limit. The first live run reported `paused` at once.
+
+**The Director's Cut** (Epic, under GE-Proton on Fedora 44) needed the same method with the phases
+labelled automatically: a script sampled the exe's writable data (57.6 MiB, 23 regions) twice a
+second and called each tick playing or paused from the number of changed u32 slots (1,500–575,000
+while playing, 140–250 while paused, so a threshold at 15% of the opening median separates them),
+then compared one snapshot from the end of each steady phase. Over 6 play and 5 pause phases
+(3–20 s each; the player was asked to pause with the menu and by switching windows, but which phase was which wasn't recorded) **exactly one slot** held one value through every
+play phase and another through every pause: the u32 at RVA `0x6CE0868`, 0 while playing and
+`0x100` while paused, so a byte at `0x6CE0869` that is 1 while paused. Like the standard edition's
+`0x5108228` it sits among heap pointers, next to a counter that grows every frame. The Director's
+Cut has no f32 speed going 1.0 → 0 in its exe data (nor the standard edition's timer-block layout),
+so the profile takes the byte (`kind = "flag"`). Live check: `odradek-sync run` attached with
+"pause detection on" and reported all four pauses within a tick, and the game's state the tick
+after each resume. Still to confirm: that switching windows pauses the game under Proton the way
+it does on Windows.
+
+## Step 12: dragged towards a big BT (the cross)
+
+Seen on the Director's Cut under Proton: caught in the tar and pulled towards a big BT, the Odradek
+folds into a cross. `recon list --active` during it showed `odra_main_cross_st` and
+`odra_arm_cross_st` playing, out of a family of `cross`, `cross_st`, `cross_idle_lp`,
+`cross_lose_lp` and `cross_ed` (main and arm). `recon watch` caught
+the rest of the episode:
+
+| Phase | Animations |
+| --- | --- |
+| caught, being pulled (16 s or more) | `cross_st` |
+| the cross's light held on (60 s) | `odra_main_cross_warrning_sign_lp`, `odra_arm_cross_idle_lp` |
+| pulling away: the light blinks, 0.44 s on every ~1.9 s, then every ~3.4 s | `cross_warrning_sign_lp` ⇄ `cross_idle_lp` |
+| escaped | `cross_lose_lp` (0.2 s), `cross_ed` (0.5 s), then `odra_*_good`, `sleep`, folded |
+
+The light behaves like the blue one (held when close, blinks further apart as Sam gets away), so
+the same `pulse_rate` deriver turns `cross_flash` into `cross_pulse` (rapid / fast / slow). `cross`
+covers the whole episode and outranks `tar` in the effect maps (the tar latch gives up after 60 s,
+and this lasted over 90 s); `cross_escape` clears both. The sleep loop stays at state 3 throughout,
+so the Odradek isn't `folded`. During the episode BB cried (`bbydef_q_crying_lp2`), then searched.
 
 ## Open questions
 
@@ -272,8 +308,8 @@ in the tar doesn't use up `tar`'s 60 s limit. The first live run reported `pause
 | --- | --- |
 | How many BTs are near | `gzmcrd_s_idle_lp` counts BT cords (7 → 21 as BTs appeared, see step 10). A deriver could turn it into a level, but its baseline may differ per area. |
 | The tar's colours | One wing orange, the rest blue, tracking the creatures in the tar: not an animation state. Probably a material parameter. |
-| Pause on the Director's Cut | Its game speed address isn't known; step 11's method finds it. |
-| Dragged to a big BT | `cst_small/middle/big_born` (likely the big BT rising) never played; Sam escaped both times. |
+| Pause flag false positives | The Director's Cut's pause byte was checked with the pause menu and switching windows only; not yet with the map, the cargo menu, cutscenes or loading screens. |
+| Dragged to a big BT | Mapped as `cross` from one escape (step 12). Not seen: what happens when the big BT gets Sam (`cst_small/middle/big_born`, perhaps red), and `odra_*_cross` without a suffix. |
 | Red | Never captured (it needs a BT grab or a fight). |
 | Orange spin speed, blue pulse speed as a number | Rapid vs slow spin changes no animation, so it's probably a playback-rate float or the distance to the nearest BT. That needs the step 1 technique, scanning for a float that rises or falls as BTs get closer. |
 | Steam build, patches | The vtable RVA may differ; `recon discover` should handle it. |
@@ -296,3 +332,5 @@ in the tar doesn't use up `tar`'s 60 s limit. The first live run reported `pause
 11. Caught in the tar: the BT detecting Sam (`surprise`) and the tar held until the warning light
     returns; BT cord counts found.
 12. Pause: the game's speed (0 while paused) found in the exe's data; the keyboard rests while paused.
+    The Director's Cut: a pause byte instead (no speed value in its exe data).
+13. Dragged towards a big BT: the Odradek's cross (`cross_*`), with its own blinking warning light.

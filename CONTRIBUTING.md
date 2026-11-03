@@ -232,10 +232,11 @@ If `recon list` finds nothing, the vtable RVA may differ for your build: run
    the offsets and `verified_builds`, copy the signal map under the new id, and run with
    `--game death_stranding_steam`.
 4. Check with `recon list --active`.
-5. Optional, pause detection: find the build's game speed, an f32 in the exe's writable data that is
-   1.0 while playing and 0 while paused, and add a `[[game_speed]]` entry (`build` = the new
-   `vtable_rva`, `rva` = its address minus the exe's load address). RESEARCH.md step 11 describes how
-   it was found; without an entry, that build simply isn't detected as paused.
+5. Optional, pause detection: find where the build says it's paused, in the exe's writable data, and
+   add a `[[pause]]` entry (`build` = the new `vtable_rva`, `rva` = its address minus the exe's load
+   address, `kind` = `"speed"` for an f32 that is 1.0 while playing and 0 while paused, or `"flag"` for
+   a byte that is nonzero while paused). RESEARCH.md step 11 describes how both were found; without
+   an entry, that build simply isn't detected as paused.
 
 ## The player app and releases
 
